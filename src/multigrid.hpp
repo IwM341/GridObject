@@ -4,45 +4,48 @@
 
 namespace grid_object{
     
-
+    /*!
+        \brief Multiindex class for iterating over multidimension grids
+        MultiIndex for N = 1 is size_t
+    */
     template <size_t N>
     struct MultiIndex{
         size_t i;
         MultiIndex<N-1> m;
         
-        inline MultiIndex(size_t j=0):i(0),m(j){}
-        inline MultiIndex& operator = (size_t j){
+        constexpr inline MultiIndex(size_t j=0) noexcept:i(0),m(j){}
+        constexpr inline MultiIndex& operator = (size_t j)noexcept{
             i=0;
             m = j;
         }
-        inline bool operator !=(const MultiIndex& mi ){
+        constexpr inline bool operator !=(const MultiIndex& mi )const noexcept{
             return (i!=m || m!= mi.m);
         }
-        inline bool operator ==(const MultiIndex& mi ){
+        constexpr inline bool operator ==(const MultiIndex& mi )const noexcept{
             return (i==m && m== mi.m);
         }
-        inline bool operator <(const MultiIndex& mi ){
+        constexpr inline bool operator <(const MultiIndex& mi )const noexcept{
             return (i<mi ? true : (i > mi ? false : m<mi));
         }
-        inline bool operator <=(const MultiIndex& mi ){
+        constexpr inline bool operator <=(const MultiIndex& mi )const noexcept{
             return (i<mi ? true : (i > mi ? false : m<=mi));
         }
-        friend inline operator >(const MultiIndex& mi_1,const MultiIndex& mi_2){
+        constexpr friend inline operator >(const MultiIndex& mi_1,const MultiIndex& mi_2){
             return mi_2<mi_1;
         }
-        friend inline operator >=(const MultiIndex& mi_1,const MultiIndex& mi_2){
+        constexpr friend inline operator >=(const MultiIndex& mi_1,const MultiIndex& mi_2){
             return mi_2<=mi_1;
         }
         template <typename...Inners>
-        inline MultiIndex(size_t i,Inners...inn):i(0),m(inn...){}
+        constexpr inline MultiIndex(size_t i,Inners...inn) noexcept:i(0),m(inn...){}
     };
 
     template <>
     struct MultiIndex<1>{
         size_t i;
-        inline MultiIndex<1>(size_t i=0):i(i){}
-        inline operator size_t ()const{return i;}
-        inline operator size_t &(){return i;}
+        constexpr inline MultiIndex<1>(size_t i=0) noexcept:i(i){}
+        constexpr inline operator size_t ()const noexcept{return i;}
+        constexpr inline operator size_t &() noexcept{return i;}
     };
 
     
@@ -57,10 +60,10 @@ namespace grid_object{
         size_t _size;
         size_t size()const{return _size;}
         
-        inline MultiGrid(cosnt GridType & Grid,const GridContainerType<InnerGridType>&InnerGrids):Grid(Grid),InnerGrids(InnerGrids){
+        inline MultiGrid(const GridType & Grid,const GridContainerType<InnerGridType>&InnerGrids):Grid(Grid),InnerGrids(InnerGrids){
             initCalcIndex();
         }
-        inline MultiGrid(cosnt GridType & Grid,GridContainerType<InnerGridType>&&InnerGrids):Grid(Grid),InnerGrids(std::move(InnerGrids)){
+        inline MultiGrid(const GridType & Grid,GridContainerType<InnerGridType>&&InnerGrids):Grid(Grid),InnerGrids(std::move(InnerGrids)){
             initCalcIndex();
         }
         inline MultiGrid( GridType && Grid,const GridContainerType<InnerGridType>&InnerGrids):Grid(std::move(Grid)),InnerGrids(InnerGrids){
