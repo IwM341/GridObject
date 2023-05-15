@@ -55,10 +55,10 @@ namespace grob{
         constexpr inline bool operator <=(const MultiIndex& mi )const noexcept{
             return (i<mi ? true : (i > mi ? false : m<=mi));
         }
-        constexpr friend inline operator >(const MultiIndex& mi_1,const MultiIndex& mi_2){
+        constexpr friend inline bool operator >(const MultiIndex& mi_1,const MultiIndex& mi_2){
             return mi_2<mi_1;
         }
-        constexpr friend inline operator >=(const MultiIndex& mi_1,const MultiIndex& mi_2){
+        constexpr friend inline bool operator >=(const MultiIndex& mi_1,const MultiIndex& mi_2){
             return mi_2<=mi_1;
         }
 
@@ -97,6 +97,7 @@ namespace grob{
 
     template <typename GridType,typename GridContainerType>
     class  MultiGrid{
+    protected:
         GridType Grid;
         GridContainerType InnerGrids;
         typedef _index_impl::_index_container<
@@ -394,8 +395,8 @@ namespace grob{
         }
         template <typename ReaderStreamType>
         static auto read(ReaderStreamType && r){
-            auto Grid = stools::read<Grid>(r);
-            auto InnerGrids = stools::read<InnerGrids>(r);
+            auto Grid = stools::read<typename std::decay<GridType>::type>(r);
+            auto InnerGrids = stools::read<typename std::decay<GridContainerType>::type>(r);
             return MultiGrid(std::move(Grid),std::move(InnerGrids));
         }
 
@@ -437,7 +438,7 @@ namespace grob{
 
         template <size_t N> 
         inline auto  operator [] (const  MultiIndex<N> &mi)const noexcept {
-            return(make_rect(GBase::Grid[mi.i],GBase::InnerGrids[mi.m]));
+            return(make_rect(GBase::Grid[mi.i],GBase::InnerGrids[mi.i][mi.m]));
         }
         inline auto  operator [] (const  size_t &mi)const noexcept {
             return GBase::Grid[mi];

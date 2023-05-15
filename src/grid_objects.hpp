@@ -104,7 +104,9 @@ struct GridFunction:public GridObject<GridType,ContainerType>{
     INHERIT_READ(GOBase,GridFunction)
 };
 
-
+/**
+ * makes GridFunction from grid and initializator, takes tuple of parameters
+*/
 template <typename Interpolator =  linear_interpolator,typename GridType,typename LambdaType>
 auto make_function_tuple(GridType && Grid,LambdaType && Func){
     typedef typename std::decay<decltype(Func(Grid[std::declval<MultiIndex<std::decay<GridType>::type::Dim>>]))>::type value_type;
@@ -117,6 +119,9 @@ auto make_function_tuple(GridType && Grid,LambdaType && Func){
     return GridFunction<Interpolator,typename std::decay<GridType>::type,value_type>(std::forward<GridType>(Grid),std::move(values));
 }
 
+/**
+ * makes GridFunction from grid and initializator, takes multiple parameters
+*/
 template <typename Interpolator = linear_interpolator,typename GridType,typename LambdaType>
 auto make_function_f(GridType && Grid,LambdaType && Func){
     typedef typename std::decay<decltype(templdefs::apply_tuple(Func,Grid[std::declval<MultiIndex<std::decay<GridType>::type::Dim>>()]))>::type value_type;
@@ -130,6 +135,10 @@ auto make_function_f(GridType && Grid,LambdaType && Func){
     return GridFunction<Interpolator,typename std::decay<GridType>::type,std::vector<value_type> >
             (std::forward<GridType>(Grid),std::move(values));
 }
+
+/**
+ * makes GridFunction from grid and vector of values
+*/
 
 template <typename Interpolator = linear_interpolator,typename GridType,typename VectorType>
 auto make_function(GridType && Grid,VectorType && Values){

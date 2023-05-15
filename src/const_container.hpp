@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <iostream>
+#include <sstream>
 #include "object_serialization.hpp"
 
 namespace grob{
@@ -63,7 +64,7 @@ namespace grob{
         }
         template <typename ReaderStreamType>
         void init_read(ReaderStreamType && r){
-            init_read(size,r);
+            init_read(size_,r);
             init_read(value,r);
         }
         OBJECT_DESERIALIZATION_FUNCTION(ConstValueVector)
@@ -142,7 +143,7 @@ namespace grob{
         }
         template <typename ReaderStreamType>
         void init_read(ReaderStreamType && r){
-            init_read(size,r);
+            init_read(size_,r);
             init_read(*value_ptr,r);
         }
 
@@ -213,7 +214,7 @@ namespace grob{
             constexpr static bool is_noexcept = false;
 
             template <typename ContainerOfContainer_in>
-            constexpr static type Create(const ContainerOfContainer_in & V){
+            static type Create(const ContainerOfContainer_in & V){
                 type Vret(V.size()+1);
                 _index_impl::_init_index_count(V,Vret.begin());
                 return Vret;
@@ -230,7 +231,7 @@ namespace grob{
             typedef LinearIndexer type;
             constexpr static bool is_noexcept = true;
             template <typename ContainerOfContainer_in>
-            constexpr static type Create(const ContainerOfContainer_in & V) noexcept{
+            static type Create(const ContainerOfContainer_in & V) noexcept{
                 return type(V.size()+1, (V.size() ? V[0].size() : 0));
             }
 
@@ -246,7 +247,7 @@ namespace grob{
 
             constexpr static bool is_noexcept = true;
             template <typename ContainerOfContainer_in>
-            constexpr static type Create(const ContainerOfContainer_in & V) noexcept{
+            static type Create(const ContainerOfContainer_in & V) noexcept{
                 return type(V.size()+1, (V.size() ? V[0].size() : 0));
             }
 
@@ -296,7 +297,7 @@ namespace grob{
         template <typename Containertype>
         struct mapper{
             template <typename LambdaType>
-            static auto map(Containertype cnt,LambdaType && F){
+            static auto map(Containertype &&cnt,LambdaType && F){
                 std::vector<typename std::decay<decltype(F(cnt[std::declval<size_t>()]))>::type> V;
                 V.reserve(cnt.size());
                 for(size_t i=0;i<V.size();++i){
@@ -308,8 +309,8 @@ namespace grob{
 
         template <typename T,typename...Args>
         struct mapper<std::vector<T,Args...>>{
-            template <typename LambdaType>
-            static auto map(std::vector<T,Args...> cnt,LambdaType && F){
+            template <typename Containertype,typename LambdaType>
+            static auto map(Containertype && cnt,LambdaType && F){
                 std::vector<typename std::decay<decltype(F(cnt[std::declval<size_t>()]))>::type,
                     Args...> V;
                 V.reserve(cnt.size());
@@ -321,8 +322,8 @@ namespace grob{
 
         template <typename T,size_t N>
         struct mapper<std::array<T,N>>{
-            template <typename LambdaType>
-            static auto map(std::array<T,N> cnt,LambdaType && F){
+            template <typename Containertype,typename LambdaType>
+            static auto map(Containertype && cnt,LambdaType && F){
                 std::array<typename std::decay<decltype(F(cnt[std::declval<size_t>()]))>::type,N> V;
                 for(size_t i=0;i<V.size();++i){
                     V.push_back(F(cnt[i]));
@@ -333,8 +334,8 @@ namespace grob{
 
         template <typename T>
         struct mapper<ConstValueVector<T>>{
-            template <typename LambdaType>
-            static auto map(ConstValueVector<T> cnt,LambdaType && F){
+            template <typename Containertype,typename LambdaType>
+            static auto map(Containertype && cnt,LambdaType && F){
                 return ConstValueVector<
                         typename std::decay<decltype(F(cnt[std::declval<size_t>()]))>::type
                     >(cnt.size(),F(cnt[0]));
@@ -343,8 +344,8 @@ namespace grob{
 
         template <typename T>
         struct mapper<ConstReferenceVector<T>>{
-            template <typename LambdaType>
-            static auto map(ConstReferenceVector<T> cnt,LambdaType && F){
+            template <typename Containertype,typename LambdaType>
+            static auto map(Containertype && cnt,LambdaType && F){
                 return ConstValueVector<
                         typename std::decay<decltype(F(cnt[std::declval<size_t>()]))>::type
                     >(cnt.size(),F(cnt[0]));
@@ -353,8 +354,8 @@ namespace grob{
 
         template <typename T>
         struct mapper<ConstSharedValueVector<T>>{
-            template <typename LambdaType>
-            static auto map(ConstSharedValueVector<T> cnt,LambdaType && F){
+            template <typename Containertype,typename LambdaType>
+            static auto map(Containertype && cnt,LambdaType && F){
                 if(cnt.getPtr() != nullptr){
                     return ConstSharedValueVector<
                             typename std::decay<decltype(F(cnt[std::declval<size_t>()]))>::type
@@ -370,7 +371,9 @@ namespace grob{
 
     template <typename Containertype,typename LambdaType>
     auto map(Containertype && C,LambdaType && F){
-        return cnt_map::mapper<typename std::decay<Containertype>::type>::map(C,F);
+        return cnt_map::mapper<typename std::decay<Containertype>::type>::map(
+            std::forward<Containertype>(C),
+            std::forward<LambdaType>(F));
     }
     
 

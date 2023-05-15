@@ -34,8 +34,8 @@ namespace grob{
             return (b ? right_ : left_);
         }
         
-        template <uint8_t level,uint8_t b>
-        constexpr const inline T & getR()const noexcept{
+        template <uint8_t level,uint8_t b = 0>
+        constexpr const inline auto & getR()const noexcept{
             static_assert(!level,"too big level of recursion in Rectangle");
             return *this;
         }
@@ -46,8 +46,8 @@ namespace grob{
             return const_cast<T &>(static_cast<const Rect &>(*this).get<level,b>());
         }
 
-        template <uint8_t level,uint8_t b>
-        constexpr inline T & getR() noexcept
+        template <uint8_t level,uint8_t b = 0>
+        constexpr inline auto & getR() noexcept
         {
             return const_cast<Rect &>(static_cast<const Rect &>(*this).getR<level,b>());
         }
@@ -71,6 +71,7 @@ namespace grob{
         }
 
         inline constexpr T volume()const noexcept{return right_-left_;}
+        T inline constexpr center()const noexcept{return (right_+left_)/2;}
 
         friend std::ostream & operator << (std::ostream & os,const Rect & R){
             std::ostringstream internal_stream;
@@ -148,7 +149,7 @@ namespace grob{
 
         inline constexpr RectCommon()noexcept{}
         inline constexpr RectCommon(T left_,T right_,
-            InnerRect inner_left,
+            InnerRect inner_left_,
             InnerRect inner_right_) noexcept:
             first_(left_, right_),inner_left_(inner_left_),inner_right_(inner_right_){}
         inline constexpr RectCommon(Rect<T> first_,
@@ -156,16 +157,38 @@ namespace grob{
             InnerRect inner_right_) noexcept:
             first_(first_),inner_left_(inner_left_),inner_right_(inner_right_){}
 
-        template <size_t level,size_t b>
-        constexpr inline T const& get() const noexcept{
-            static_assert(level < Dim,"error: level >= Dim");
-                return (level ? (b %2 ? inner_right_.template get<level-1, (b>>1)>() : inner_left_.InnerRect::template get<level-1, (b>>1)>()):
-                    (b ? right() : left()));
+        template <size_t level,size_t b,
+                  typename std::enable_if<level!=0,bool>::type = true>
+        constexpr inline auto const& get() const noexcept{
+            (b&1 ? right().template get<level-1,(b>>1)>(): left().template get<level-1,(b>>1)>());
+        }
+
+        template <size_t level,size_t b,
+                  typename std::enable_if<level==0,bool>::type = true>
+        constexpr inline auto const& get() const noexcept{
+            return first_.template get<level,b>();
         }
 
         template <size_t level,size_t b> 
-        constexpr inline T & get() noexcept{
+        constexpr inline auto & get() noexcept{
                 return const_cast<T &>(static_cast<const RectCommon &>(*this).get<level,b>());
+        }
+
+        template <size_t level,size_t b = 0,
+                  typename std::enable_if<level!=0,bool>::type = true>
+        constexpr inline auto const& getR() const noexcept{
+            (b&1 ? right().template getR<level-1,(b>>1)>(): left().template getR<level-1,(b>>1)>());
+        }
+        template <size_t level,size_t b = 0,
+                  typename std::enable_if<level==0,bool>::type = true>
+        constexpr inline auto const& getR() const noexcept{
+            return first_;
+        }
+
+        template <uint8_t level,uint8_t b>
+        constexpr inline auto & getR() noexcept
+        {
+            return const_cast<Rect<T> &>(static_cast<const RectCommon &>(*this).getR<level,b>());
         }
 
         inline constexpr auto const& first() const noexcept{return first_;}
@@ -184,7 +207,10 @@ namespace grob{
         inline constexpr InnerRect & inner_right() noexcept{return inner_right_;}
 
         inline constexpr InnerRect volume()const noexcept{return first_.volume()*(inner_left_.volume()+inner_right_.volume())/2;}
-        
+
+        auto inline constexpr center()const noexcept{
+            return std::make_tuple();
+        }
 
         template <typename...Args>
         inline constexpr bool contains(Args const &... args) const noexcept{
@@ -203,8 +229,8 @@ namespace grob{
 
         template <typename U>
         inline constexpr auto inner_reduce(U const & a)const noexcept{
-            auto ic = first_.interpol_coeff(a);
-            return linear_combination(inner_left_,inner_right_,ic,1-ic);
+            //auto ic = first_.interpol_coeff(a);
+            return linear_combination(inner_left_,inner_right_,a,1-a);
         }
 
 
@@ -339,6 +365,22 @@ namespace grob{
         constexpr inline T & get() noexcept{
                 return const_cast<T &>(static_cast<const RectConst &>(*this).get<level,b>());
             }
+        template <size_t level,size_t b = 0,
+                  typename std::enable_if<level!=0,bool>::type = true>
+        constexpr inline auto const& getR() const noexcept{
+            return inner_left_right_.template getR<level-1,(b>>1)>();
+        }
+        template <size_t level,size_t b = 0,
+                  typename std::enable_if<level==0,bool>::type = true>
+        constexpr inline auto const& getR() const noexcept{
+            return first_;
+        }
+
+        template <uint8_t level,uint8_t b>
+        constexpr inline auto & getR() noexcept
+        {
+            return const_cast<Rect<T> &>(static_cast<const RectConst &>(*this).getR<level,b>());
+        }
 
         
         inline constexpr auto const& first() const noexcept{return first_;}

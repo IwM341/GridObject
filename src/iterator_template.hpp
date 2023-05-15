@@ -16,7 +16,7 @@ namespace grob{
         const Indexer * _cnt;
         size_t _index;
         public:
-        _const_iterator_template(const Indexer &_cnt,size_t _index):_index(_index),_cnt(&_cnt){}
+        _const_iterator_template(const Indexer &_cnt,size_t _index):_cnt(&_cnt),_index(_index){}
         
         constexpr inline ret_type operator *() const noexcept(noexcept(_cnt[std::declval<size_t>()])){
             return (*_cnt)[_index];

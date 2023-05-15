@@ -61,6 +61,7 @@ int main(){
     PVAR(H2.Values);
     PVAR(H2.Grid.pos(5.5,4.6));
     H2.put(0.12,4.5,5.5);
+    H2.put_tuple(0.42,std::make_tuple(3.4,7.8));
     PVAR(H2.Values);
     PVAR(H2[std::make_tuple(4,5)]);
 
@@ -68,7 +69,15 @@ int main(){
     std::stringstream out;
 
 
+    
     auto Pt =  H2.Serialize(SP);
+
+    //stools::SerializatorJson SJ{};
+    //H2.Serialize(SJ);
+
+
+    boost::property_tree::write_json(std::cout,Pt);
+
     auto H2r = stools::DeSerialize<decltype(H2)>(Pt,SP);
 
     PVAR(H2r.Grid);
