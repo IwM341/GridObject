@@ -164,6 +164,37 @@ namespace grob{
     }
 
     template <typename Container>
+    void __print_container__(std::ostream & os,Container const& cnt);
+
+
+    template <typename...Args>
+    void  __print_container__(std::ostream & os,const std::vector<Args...> & VG){
+        std::ostringstream internal_stream;
+        internal_stream << "vector(" << VG.size() << ")[";
+        if(VG.size()){
+            internal_stream << VG[0];
+        }
+        for(size_t i=1;i<VG.size();++i){
+            internal_stream << ", " <<VG[i];
+        }
+        internal_stream << "]";
+        os << internal_stream.str();
+    }
+    template <typename T,size_t N>
+    void  __print_container__(std::ostream & os,const std::array<T,N> & VG){
+        std::ostringstream internal_stream;
+        internal_stream << "array(" << VG.size() << ")[";
+        if(VG.size()){
+            internal_stream << VG[0];
+        }
+        for(size_t i=1;i<VG.size();++i){
+            internal_stream << ", " <<VG[i];
+        }
+        internal_stream << "]";
+        os << internal_stream.str();
+    }
+
+    template <typename Container>
     struct __default_grid_constructor__{
         constexpr static bool constructable = false;
     };
@@ -251,15 +282,26 @@ namespace grob{
             return _self.a<=x && x<=_self.b;
         }
         
-        /// @brief debuging to stream
-        friend std::ostream & operator << (std::ostream & os,const UniformContainer & VG){
+        /// @brief printing to stream
+        friend void __print_container__ (std::ostream & os,const UniformContainer & VG){
             std::stringstream internal_stream;
-            internal_stream << "(" << VG._size << ")[" << VG.a <<", "<< VG.b;
+            internal_stream << "Uniform(" << VG._size << ")[" << VG.a <<", "<< VG.b;
             internal_stream << "]";
-            return os << internal_stream.str();
+            os << internal_stream.str();
         }
 
+        /// @brief debuging to stream
+        friend std::ostream & operator << (std::ostream & os,const UniformContainer & VG){
+            __print_container__(os,VG);
+            return os;
+        }
 
+        
+
+        /// @brief serialize into object such as boost ptree
+        /// @tparam Serializer type, translating types to object type
+        /// @param S 
+        /// @return S.MakeDict(...)
         template <typename Serializer>
         auto Serialize(Serializer && S) const{
             static std::array<const char*,3> fields({"size","a","b"});
@@ -279,6 +321,12 @@ namespace grob{
                     };
                 });
         }
+
+        /// @brief rewrite this object from Object with S
+        /// @tparam ObjecType 
+        /// @tparam DeSerializer class, which can translate ObjecType to any types
+        /// @param Object property contating object (e.g. boost ptree)
+        /// @param S serializer
         template <typename ObjecType,typename DeSerializer>
         void init_serialize(ObjecType && Object,DeSerializer && S){
             S.GetPrimitive(S.GetProperty(Object,"size"),_size);
@@ -287,12 +335,15 @@ namespace grob{
         }
         
 
+        /// @brief writes content with writer WriterStreamType
         template <typename WriterStreamType>
         void write(WriterStreamType && w) const{
             w.write(_size);
             w.write(a);
             w.write(b);
         }
+
+        /// @brief rewrites object with reader ReaderStreamType 
         template <typename ReaderStreamType>
         void init_read(ReaderStreamType && r){
             r.read(_size);
@@ -342,6 +393,9 @@ namespace grob{
         inline const_iterator cend()const noexcept{return const_iterator(*this,_size);}
     };
 
+    
+
+
     /**
      * \brief one-dimention grid managed by Container
      * 
@@ -370,7 +424,8 @@ namespace grob{
         /// @param _cnt base container of grid 
         Grid1 (Container _cnt):Container(std::forward<Container>(_cnt)){}
         
-        template <typename std::enable_if<__default_grid_constructor__<Container>::constructable,bool>::type = true> 
+        template <typename __CNT__ =  Container,
+            typename std::enable_if<__default_grid_constructor__<__CNT__>::constructable,bool>::type = true> 
         Grid1(value_type const & a,value_type const & b,size_t _size) 
             noexcept(noexcept(__default_grid_constructor__<Container>::construct(a,b,_size))):
             Container(__default_grid_constructor__<Container>::construct(a,b,_size)){}
@@ -466,6 +521,23 @@ namespace grob{
         }
     };
 
+    /// @brief makes grid1 from Containr _cnt
+    /// @tparam Container 
+    /// @param _cnt 
+    /// @return Grid1<Container>
+    template <typename Container>
+    auto make_grid1(Container && _cnt){
+        return Grid1<typename std::decay<Container>::type>(
+            std::forward<Container>(_cnt));
+    }
+
+    template <typename Container>
+    std::ostream & operator << (std::ostream & os,Grid1<Container> const & VG){
+        __print_container__(os,static_cast<Container const &>(VG));
+        return os;
+    }
+
+
     template <typename Container>
     struct GridHisto: public Grid1<Container>{
         typedef Grid1<Container> GBase; 
@@ -508,6 +580,146 @@ namespace grob{
         inline constexpr size_t IsEnd(size_t i)const noexcept{return i == size();}
     };
 
+    /// @brief makes histo_grid1 from Containr _cnt
+    /// @tparam Container 
+    /// @param _cnt 
+    /// @return GridHisto<Container>
+    template <typename Container>
+    auto make_histo_grid(Container && _cnt){
+        return GridHisto<typename std::decay<Container>::type>(
+            std::forward<Container>(_cnt));
+    }
+    
+    /// @brief container whose values are results of function applied to uniform container
+    /// @tparam T value type of container
+    /// @tparam FunctypeToHidden any functype with signature T -> T_hidden
+    /// @tparam FunctypeFromHidden  any functype with signature T_hidden -> T
+    template <typename T,typename FunctypeToHidden,typename FunctypeFromHidden>
+    struct FunctionalContainer{
+        typedef UniformContainer<
+                typename std::decay<
+                        typename std::invoke_result<FunctypeToHidden,T>::type
+                    >::type
+            > UBase;
+        
+        UBase _body;
+        protected:
+        FunctypeToHidden _to_hidden;
+        FunctypeFromHidden _from_hidden;
+        
+        public:
+        typedef T value_type;
+        typedef typename UBase::value_type  hidden_value_type;
+        
+        /// @brief constructor of container
+        /// @param a begin of range
+        /// @param b end of range
+        /// @param _size size of range
+        /// @param _to_hidden rising function, which maps a..b -> a'..b'
+        /// @param _from_hidden rising function, which maps a'..b' -> a..b
+        constexpr inline FunctionalContainer( T a,T  b,size_t _size,
+                    FunctypeToHidden _to_hidden,FunctypeFromHidden  _from_hidden)noexcept:
+                        _body(_to_hidden(a),_to_hidden(b),_size),
+                        _to_hidden(std::forward<FunctypeToHidden>(_to_hidden)),
+                        _from_hidden(std::forward<FunctypeFromHidden>(_from_hidden)){}
+        
+        /// @brief constructor of container
+        /// @param _uniform_base UniformContainer of range a'..b'
+        constexpr inline FunctionalContainer(const UBase &_uniform_base,
+                        FunctypeToHidden  _to_hidden,FunctypeFromHidden _from_hidden)noexcept:
+                        _to_hidden(std::forward<FunctypeToHidden>(_to_hidden)),
+                        _from_hidden(std::forward<FunctypeFromHidden>(_from_hidden)),UBase(_uniform_base){}
+        
+
+
+        constexpr inline size_t size() const noexcept{return _body.size();}
+        constexpr inline const T front() const noexcept{return _from_hidden(UBase::a);}
+        constexpr inline const T back() const noexcept{return _from_hidden(UBase::b);}
+        constexpr inline T operator[](size_t i) const noexcept{
+            return _from_hidden(_body[i]);
+        }
+
+        friend constexpr size_t __pos__impl__(FunctionalContainer const & _self,value_type const & x)noexcept{
+            return __pos__impl__(_self._body,_self._to_hidden(x));
+        }
+
+        friend inline constexpr bool __contain__impl__(FunctionalContainer const & _self,const T &x)noexcept{
+            return __contain__impl__(_self._body,_self._to_hidden(x));
+        }
+        
+        /// @brief printing to stream
+        friend void __print_container__ (std::ostream & os,const FunctionalContainer & VG){
+            std::ostringstream internal_stream;
+            internal_stream << "FunctionalContainer(" << VG.size() << ")[";
+            if(VG.size()){
+                internal_stream << VG[0];
+            }
+            for(size_t i=1;i<VG.size();++i){
+                internal_stream << ", " <<VG[i];
+            }
+            internal_stream << "]";
+            os << internal_stream.str();
+        }
+
+        /// @brief 
+        friend std::ostream & operator << (std::ostream & os,const FunctionalContainer & VG){
+           __print_container__(os,VG);
+           return os;
+        }
+
+        template <typename Serializer>
+        auto Serialize(Serializer && S){
+            return S.MakeArray(size(),[this,&S](size_t i){
+                return stools::Serialize((*this)[i],S);
+            });
+        }
+
+        template <typename WriterStreamType>
+        void write(WriterStreamType && w) const{
+            w.write(size());
+            for(size_t i=0;i<size();++i)
+                w.write((*this)[i]);
+        }
+
+
+        typedef _const_iterator_template<FunctionalContainer,T> const_iterator;
+
+        /// @brief 
+        inline const_iterator begin()const noexcept{return const_iterator(*this,0);}
+        /// @brief 
+        inline const_iterator end()const noexcept{return const_iterator(*this,this->_size);}
+        /// @brief 
+        inline const_iterator cbegin()const noexcept{return const_iterator(*this,0);}
+        /// @brief 
+        inline const_iterator cend()const noexcept{return const_iterator(*this,this->_size);}
+    };
+
+    /// @brief makes Grid1<FunctionContainer>
+    template <typename T,typename FunctypeToHidden,typename FunctypeFromHidden>
+    auto make_func_grid1(T &&a, T && b,size_t _size,FunctypeToHidden && fth,
+                                                FunctypeFromHidden && ffh){
+        return make_grid1(FunctionalContainer<typename std::decay<T>::type,
+                    typename std::decay<FunctypeToHidden>::type,
+                    typename std::decay<FunctypeFromHidden>::type
+                >(std::forward<T>(a),std::forward<T>(b),_size,
+                    std::forward<FunctypeToHidden>(fth),
+                    std::forward<FunctypeFromHidden>(ffh))
+        );
+    }
+    /// @brief makes GridHisto<FunctionContainer>
+    template <typename T,typename FunctypeToHidden,typename FunctypeFromHidden>
+    auto make_func_histo_grid(T &&a, T && b,size_t _size,FunctypeToHidden && fth,
+                                                    FunctypeFromHidden && ffh){
+        return make_grid_histo(
+                FunctionalContainer<typename std::decay<T>::type,
+                    typename std::decay<FunctypeToHidden>::type,
+                    typename std::decay<FunctypeFromHidden>::type
+                >(std::forward<T>(a),std::forward<T>(b),_size,
+                    std::forward<FunctypeToHidden>(fth),
+                    std::forward<FunctypeFromHidden>(ffh)
+                )
+        );
+    } 
    
 
     template <typename Type>
