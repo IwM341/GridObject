@@ -3,7 +3,7 @@
 
 #include <sstream>
 #include <tuple>
-
+#include <vector>
 
 
 namespace debugdefs{
@@ -15,8 +15,8 @@ namespace debugdefs{
         os <<  x;
         return os.str();
     }
-    template <typename T,typename...Args>
-    std::string to_debug_string(std::vector<T,Args...> const&V){
+    template <typename...Args>
+    std::string to_debug_string(std::vector<Args...> const&V){
         std::ostringstream os;
         os <<  "vector[";
         for(size_t i=0;i<V.size();++i){
@@ -64,19 +64,18 @@ namespace debugdefs{
         os << ")";
         return os.str();
     }
+
+    template <typename Equation,typename Expectation>
+    void __test_impl__(std::string const &test_name,Equation const& eq_res,Expectation const & exp_res){
+        if(eq_res == exp_res){
+            std::cout << "OK, TEST(" + test_name + "): " + to_debug_string(eq_res) + " = " + to_debug_string(exp_res) <<std::endl;
+        }else{
+            std::cout << "ERROR, TEST(" + test_name + "): " + to_debug_string(eq_res) + " != " + to_debug_string(exp_res) <<std::endl;
+        }
+    }
 };
 
-template <typename U,typename V>
-std::ostream & operator << (std::ostream & os, const std::pair<U,V> & P){
-    os << "pair(" << P.first << ", " << P.second << ")";
-    return os;
-}
 
-template<typename...Args>
-std::ostream & operator << (std::ostream & os,const std::tuple<Args...> & TP){
-    os << debugdefs::to_debug_string(TP);
-    return os;
-}
 #define SVAR(x) (std::string(#x) + std::string(" = ") + debugdefs::to_debug_string(x))
 #define PVAR(x) std::cout << SVAR(x) <<std::endl
 
@@ -86,6 +85,9 @@ std::ostream & operator << (std::ostream & os,const std::tuple<Args...> & TP){
 
 #define DEBUG std::cout << __PRETTY_FUNCTION__ <<std::endl;
 
+#define TEST(equation,expectation) (debugdefs::__test_impl__(SVAR(equation),\
+                                                debugdefs::to_debug_string(equation), \
+                                               debugdefs::to_debug_string(expectation )))
 
 template <typename T>
 std::string TypeString(){
@@ -117,6 +119,29 @@ void print(T data,Args...args){
     std::cout << data;
     print(args...);
 }
+template <typename U,typename V>
+std::ostream & operator << (std::ostream & os, const std::pair<U,V> & P){
+    os << "pair(" << P.first << ", " << P.second << ")";
+    return os;
+}
 
+template<typename...Args>
+std::ostream & operator << (std::ostream & os,const std::tuple<Args...> & TP){
+    os << debugdefs::to_debug_string(TP);
+    return os;
+}
+template<typename...Args>
+std::ostream & operator << (std::ostream & os,const std::vector<Args...> & TP){
+    std::ostringstream out;
+    //TP = 1+"kl;";
+    out << "[";
+    if(TP.size()){
+        out << TP[0];
+    }
+    for(size_t i=1;i<TP.size();++i){
+        out << "," << TP[i];  
+    }out << "]";
+    return os << out.str();
+}
 
 #endif

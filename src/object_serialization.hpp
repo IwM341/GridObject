@@ -208,7 +208,11 @@ namespace stools{
             V.reserve(size);
             return size;
         }
-        static inline size_t _condition_reserve_vector(...) noexcept{
+        struct convertible_from_any{
+            template <typename AnyType>
+            convertible_from_any(AnyType && ){}
+        };
+        static inline size_t _condition_reserve_vector(convertible_from_any,convertible_from_any,convertible_from_any) noexcept{
             return 0;
         }
 
@@ -216,7 +220,7 @@ namespace stools{
         template <typename DeSerializer,typename Object>
         static auto DeSerialize(Object && Obj,DeSerializer && DS){
             Container V;
-            _condition_reserve_vector(V,Obj,DS);
+            _condition_reserve_vector((Container &)V,Obj,DS);
             for(auto it = DS.Begin(Obj);it != DS.End(Obj);++it){
                 V.push_back(_deserialize_helper<typename std::decay<T>::type>::DeSerialize(DS.GetValue(it),DS));
             }
@@ -234,7 +238,7 @@ namespace stools{
             std::array<T,N> V;
             size_t i;
             for(auto it = DS.Begin(Obj),i=0;it != DS.End(Obj);++it,++i){
-                V[i] = _deserialize_helper<typename std::decay<T>::type>::DeSerialize(DS.Value(it));
+                V[i] = _deserialize_helper<typename std::decay<T>::type>::DeSerialize(DS.GetValue(it),DS);
             }
             return V;
         }
@@ -435,6 +439,7 @@ namespace stools{
         template <typename...Args>
         std::ostream & operator <<(std::ostream & os, std::vector<Args...> const & V){
             std::ostringstream S;
+            //V = "bnmk";
             S << "Vector[";
             for(size_t i=0;i<V.size();++i){
                 if(i){
@@ -461,6 +466,11 @@ namespace stools{
             }
             S << "]";
             return os << S.str();
+        }
+
+        template <typename T>
+        inline void __print__including__vectors__(std::ostream & os,T const & value){
+            os << value;
         }
     };
 

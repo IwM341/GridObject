@@ -6,7 +6,7 @@
 #include <tuple>
 #include <iostream>
 #include <type_traits>
-
+#include "object_serialization.hpp"
 namespace grob{
 
 namespace detail{
@@ -81,7 +81,7 @@ struct csv_viewer{
         size_t i=0;
         for(auto MI = Object.Grid.Multi0();MI != Object.Grid.MultiSize();Object.Grid.MultiIncrement(MI),++i){
             detail::tp_to_csv<GOType::Dim>::write(os,Object.Grid[MI],'\t');
-            os << Object.Values[Object.Grid.LinearIndex(MI)] << std::endl;
+            os << Object.Values[Object.Grid.LinearIndex(MI)]<< std::endl;
         }
     }
 };

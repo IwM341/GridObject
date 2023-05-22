@@ -209,7 +209,7 @@ namespace grob{
         inline constexpr InnerRect volume()const noexcept{return first_.volume()*(inner_left_.volume()+inner_right_.volume())/2;}
 
         auto inline constexpr center()const noexcept{
-            return std::make_tuple();
+            return std::make_tuple(first_.center());
         }
 
         template <typename...Args>
@@ -322,7 +322,7 @@ namespace grob{
         OBJECT_DESERIALIZATION_FUNCTION(RectCommon)
         OBJECT_READ_FUNCTION(RectCommon)
 
-        private:
+        
         Rect<T> first_;
         InnerRect inner_left_,inner_right_;
         
@@ -477,7 +477,7 @@ namespace grob{
         OBJECT_DESERIALIZATION_FUNCTION(RectConst)
         OBJECT_READ_FUNCTION(RectConst)
 
-        private:
+        
         Rect<T> first_;
         InnerRect inner_left_right_;
     };

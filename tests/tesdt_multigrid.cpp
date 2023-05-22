@@ -1,8 +1,12 @@
 #include <iostream>
-#include "../src/container_shift.hpp"
-#include "../src/multigrid.hpp"
-#include "../src/grid.hpp"
+
 #include "debug_defs.hpp"
+
+#include "../src/container_shift.hpp"
+
+#include "../src/grid.hpp"
+
+#include "../src/multigrid.hpp"
 #include <vector>
 #include <array>
 
@@ -14,12 +18,15 @@ int main(){
     std::vector<decltype(U)> VU(11,U) ;
     grob::MultiGrid<decltype(U),decltype(VU)> MG(U,VU);
 
+    
     auto I = MG.pos(0.5,0.5);
     cout << I <<endl;
     cout << MG[I] << endl;
 
     auto MG1 = grob::make_grid(U,VU);
 
+    //using namespace stools::print_vector; 
+    //cout << VU << endl;
     cout << MG1 << endl;
 
     stools::SerializatorJson S(std::cout);
@@ -27,6 +34,7 @@ int main(){
 
     auto G2 = grob::mesh_grids(U,U);
     cout << G2 <<endl;
+
 
     auto G3 = grob::mesh_grids(G2,U);
 
@@ -41,6 +49,6 @@ int main(){
 
     print(G3.FindIndex(0.1,0.5,0.7));
     print(G3.FindElement(0.1,0.5,0.7));
-    print("version 1 1 5");
+    print("version 1 1 6");
     return 0;
 }

@@ -4,6 +4,8 @@
 #include <type_traits>
 #include <tuple>
 #include <inttypes.h>
+#include <memory>
+
 namespace templdefs{
 
 template<class T, class U>
@@ -192,6 +194,15 @@ constexpr decltype(auto) apply_tuple(F&& f, Tuple&& t)
     );
 }
 
+template <typename ClassType>
+struct is_shared_ptr{
+    constexpr static bool value = false;
+};
+
+template <typename T>
+struct is_shared_ptr<std::shared_ptr<T>>{
+    constexpr static bool value = true;
+};
 
 };
 #endif//TEMPLATES_HPP

@@ -110,6 +110,24 @@ namespace grob{
         }
         return i1;
     }
+
+    template <typename Container,typename T,typename Comparator = std::less<T>>
+    inline size_t __find_int_index_sorted_corrector(const Container &X,T const& x,size_t i1,size_t i2, Comparator && cmp = std::less<T>{}){
+        while(i1 +1 < i2){
+            size_t i = (i1 + i2)/2;
+            if(cmp(x,X[i])){
+                i2 = i;
+            }
+            else {
+                i1 = i;
+            }
+        }
+        if(x == X[i2])
+            return i2;
+        else
+            return i1;
+    }
+
     template <typename Container,typename T,typename Comparator = std::less<T>>
     inline size_t __find_index_sorted_with_guess(const Container &X,T const&x, Comparator && cmp = std::less<T>{}){
         size_t N = X.size();
@@ -118,7 +136,7 @@ namespace grob{
         }
         size_t i_guess = N*(x-X[0])/(X[N-1]-X[0]);
         if(i_guess >= N-1){
-            return N-2;
+            i_guess = N-2;
         }
         if(cmp(x,X[i_guess])){
             size_t di = 1;
@@ -140,14 +158,58 @@ namespace grob{
             size_t i1 = i_guess+di;
             while(cmp(X[i1],x)){
                 i1 += di;
+                di *= 2;
                 if(i1 >= N){
-                    i1 = N;
+                    i1 = N-1;
                     break;
                 }
             }
             return __find_index_sorted_corrector(X,x,i_guess,i1,cmp);
         }
     }
+
+
+    template <typename Container,typename T,typename Comparator = std::less<T>>
+    inline size_t __find_int_index_sorted_with_guess(const Container &X,T const&x, Comparator && cmp = std::less<T>{}){
+        size_t N = X.size();
+        if(N <= 1 or cmp(x,X[0])){
+            return 0;
+        }
+        size_t i_guess = (N*(x-X[0]))/(X[N-1]-X[0]);
+        if(i_guess > N-1){
+            i_guess = N-1;
+        }
+        if(cmp(x,X[i_guess])){
+            size_t di = 1;
+            size_t i1 = i_guess-di;
+            while(cmp(x,X[i1])){
+                if(di < i1){
+                    i1 -= di;
+                    di *= 2;
+                }
+                else{
+                    i1 = 0;
+                    break;
+                }
+            }
+            return __find_int_index_sorted_corrector(X,x,i1,i_guess,cmp);
+        }
+        else{
+            size_t di = 1;
+            size_t i1 = i_guess+di;
+            while(cmp(X[i1],x)){
+                i1 += di;
+                di *= 2;
+                if(i1 >= N){
+                    i1 = N-1;
+                    break;
+                }
+            }
+            return __find_int_index_sorted_corrector(X,x,i_guess,i1,cmp);
+        }
+    }
+
+
     template <typename Container,typename T,typename Comparator>
     inline auto __find_index_sorted(const Container &X,T const&x, Comparator && cmp = std::less<T>{}){
         return __find_index_sorted_corrector(X,x,0,X.size()-1,cmp);

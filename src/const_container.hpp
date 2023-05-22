@@ -10,11 +10,13 @@ namespace grob{
     
     template <typename T>
     class ConstValueVector{
-        typedef T value_type;
+        
         T value;
         size_t size_;
 
         public:
+        typedef T value_type;
+
         inline constexpr size_t size() const noexcept{
             return size_;
         }
@@ -24,6 +26,8 @@ namespace grob{
         inline constexpr T & operator[](size_t)  noexcept{
             return value;
         }
+
+        ConstValueVector(size_t size_ = 0):size_(size_){}
         inline constexpr ConstValueVector(T value,size_t size_ = 0) noexcept:value(std::forward<T>(value)),size_(size_) {}
         
         inline void resize(size_t new_size)noexcept{size_ = new_size;}
@@ -54,18 +58,18 @@ namespace grob{
 
         template <typename ObjecType,typename DeSerializer>
         void init_serialize(ObjecType && Object,DeSerializer && S){
-            init_serialize(size_,S.GetProperty(Object,"size"));
-            init_serialize(value,S.GetProperty(Object,"value"));
+            stools::init_serialize(size_,S.GetProperty(Object,"size"),S);
+            stools::init_serialize(value,S.GetProperty(Object,"value"),S);
         }
         template <typename WriterStreamType>
         void write(WriterStreamType && w){
-            write(size_,w);
-            write(value,w);
+            stools::write(size_,w);
+            stools::write(value,w);
         }
         template <typename ReaderStreamType>
         void init_read(ReaderStreamType && r){
-            init_read(size_,r);
-            init_read(value,r);
+            stools::init_read(size_,r);
+            stools::init_read(value,r);
         }
         OBJECT_DESERIALIZATION_FUNCTION(ConstValueVector)
         OBJECT_READ_FUNCTION(ConstValueVector)
@@ -196,6 +200,16 @@ namespace grob{
         constexpr static bool value = true;
     };
 
+
+    template <typename FuncType>
+    constexpr auto make_vector(size_t size,FuncType && F){
+        std::vector<typename std::decay<decltype(F(0))>::type > V;
+        V.reserve(size);
+        for(size_t i=0;i<size;++i){
+            V.push_back(F(i));
+        }
+        return V;
+    } 
 
     namespace _index_impl{
         template <typename ContainerOfContainer,typename Iterator>
@@ -338,7 +352,7 @@ namespace grob{
             static auto map(Containertype && cnt,LambdaType && F){
                 return ConstValueVector<
                         typename std::decay<decltype(F(cnt[std::declval<size_t>()]))>::type
-                    >(cnt.size(),F(cnt[0]));
+                    >(F(cnt[0]),cnt.size());
             }
         };
 
@@ -348,7 +362,7 @@ namespace grob{
             static auto map(Containertype && cnt,LambdaType && F){
                 return ConstValueVector<
                         typename std::decay<decltype(F(cnt[std::declval<size_t>()]))>::type
-                    >(cnt.size(),F(cnt[0]));
+                    >(F(cnt[0]),cnt.size());
             }
         };
 

@@ -143,6 +143,17 @@ inline auto make_slice(IndexingType &Container,size_t shift,size_t size = 0)noex
     return container_slice<IndexingType>(&Container,shift,size);
 }
 
+
+template <typename T>
+inline auto make_slice(vector_view<T> &Container,size_t shift,size_t size = 0)noexcept{
+    return vector_view<T>(Container.values + shift,size);
+}
+
+template <typename T>
+inline auto make_slice(const vector_view<T> &Container,size_t shift,size_t size = 0)noexcept{
+    return vector_view<const T>(Container.values + shift,size);
+}
+
 template <typename T,typename ...Other>
 inline auto make_slice(std::vector<T,Other...> & V,size_t shift,size_t size = 0) noexcept{
     return vector_view<T>(V.data() + shift,size);
