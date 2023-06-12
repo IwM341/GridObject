@@ -35,6 +35,13 @@ int main(){
     auto G2 = grob::mesh_grids(U,U);
     cout << G2 <<endl;
 
+    auto Grid2 = grob::make_grid_f(
+        U,[=](size_t i){
+            return grob::GridUniform<double>(0,1,i+2);
+        }
+    );
+
+    PVAR(Grid2);
 
     auto G3 = grob::mesh_grids(G2,U);
 
