@@ -6,7 +6,7 @@
 #include "object_serialization.hpp"
 #include <memory>
 #include "iterator_template.hpp"
-
+#include "point.hpp"
 
 namespace grob{
     
@@ -14,41 +14,51 @@ namespace grob{
         \brief Multiindex class for iterating over multidimension grids
         MultiIndex for N = 1 is size_t
     */
-    template <size_t N>
-    struct MultiIndex{
-        size_t i;
-        MultiIndex<N-1> m;
-        constexpr static size_t Dim = N;
+    template <typename...IndexType>
+    struct MultiIndex;
+    
+    /// @brief 
+    /// @tparam HeadIndex --- type of head index, could be as size_t as MultiIndex<Args...>
+    /// @tparam ...TailIndex --- another indexes
+    template <typename HeadIndex,typename...TailIndex>
+    struct MultiIndex<HeadIndex,TailIndex...>{
+        typedef HeadIndex Head;
+        typedef MultiIndex<TailIndex...> Tail;
+        constexpr static size_t Dim = 1 + Tail::Dim;
+        HeadIndex i;
+        Tail m;
+
+        inline constexpr MultiIndex(HeadIndex _i,TailIndex..._m) noexcept:i(_i),m(_m...) {}
         
-        /// @brief construct from multiple ints
-        template <typename...Args>
-        constexpr inline MultiIndex(size_t i = 0,Args...args) noexcept:i(i),m(args...){}
-        
-        /// @brief recoursive construction
-        /// @param i head
-        /// @param m tail
-        template <size_t M>
-        constexpr inline MultiIndex(size_t i,MultiIndex<M-1> const& m) noexcept:i(i),m(m){}
+        inline constexpr MultiIndex(HeadIndex _i,MultiIndex<TailIndex...> m) noexcept:i(_i),m(m) {}
 
-        /// @brief tuple initialization
-        template <size_t tuple_start,typename TupleType>
-        inline constexpr void from_tuple(TupleType const & IT)noexcept{
-            i = std::get<tuple_start>(IT);
-            m.template from_tuple<tuple_start+1>(IT);
+        inline constexpr MultiIndex(){}
+
+        template <size_t index>
+        inline constexpr const auto & get(std::integral_constant<size_t,index>) const noexcept{
+            return m.get(std::integral_constant<size_t,index-1>{});
+        }
+        inline constexpr const auto & get(std::integral_constant<size_t,0>) const noexcept{
+            return i;
         }
 
-        /// @brief tuple constructor
-        template <typename...TupleTypes>
-        constexpr inline MultiIndex(std::tuple<TupleTypes...> const & IT){
-            from_tuple<0,std::tuple<TupleTypes...>>(IT);
+        template <size_t index>
+        inline constexpr  auto & get(std::integral_constant<size_t,index>)  noexcept{
+            return m.get(std::integral_constant<size_t,index-1>{});
+        }
+        inline constexpr auto & get(std::integral_constant<size_t,0>)  noexcept{
+            return i;
         }
 
-        /// @brief 
-        constexpr inline MultiIndex& operator = (size_t j)noexcept{
-            i=0;
-            m = j;
-            return *this;
+        template <size_t index>
+        inline constexpr const auto & get() const noexcept{
+            return m.template get(std::integral_constant<size_t,index>{});
         }
+        template <size_t index>
+        inline constexpr auto & get() noexcept{
+            return m.template get(std::integral_constant<size_t,index>{});
+        }
+
         /// @brief 
         constexpr inline bool operator !=(const MultiIndex& mi )const noexcept{
             return (i!=mi.i || m!= mi.m);
@@ -75,48 +85,129 @@ namespace grob{
         }
 
         /// @brief 
-        inline std::string toString() const noexcept{
-            return std::to_string(i) + ", " + m.toString();
-        }
-        /// @brief 
         friend std::ostream & operator <<(std::ostream &os,const MultiIndex & MI){
-            os << ("MultiIndex(" + MI.toString() + ")");
+            os << "(" << MI.i <<", " << MI.m << ")";
             return os;
         }
     };
-
-    /// @brief MultiIndex<1> is practically same as size_t 
-    template <>
-    struct MultiIndex<1>{
-        size_t i;
+    template <typename Index>
+    struct MultiIndex<Index>{
         constexpr static size_t Dim = 1;
+        Index i;
+        inline constexpr operator Index & () noexcept{return i;}
+        inline constexpr operator Index const& () const noexcept{return i;}
 
-        template <size_t tuple_start,typename TupleType>
-        inline constexpr void from_tuple(TupleType const & IT)noexcept{
-            i = std::get<tuple_start>(IT);
+        template <typename...Args>
+        inline constexpr MultiIndex<Index>(Args...args) noexcept:i(args...){}
+        
+        template <size_t index>
+        inline constexpr auto & get() noexcept{
+            static_assert(index != 0, "MultiIndex get: out of range");
+            return i;
         }
 
-        template <typename...TupleTypes>
-        constexpr inline MultiIndex(std::tuple<TupleTypes...> const & IT):MultiIndex(from_tuple<0,std::tuple<TupleTypes...>>(IT)){}
-
-        constexpr inline MultiIndex<1>(size_t i=0) noexcept:i(i){}
-        constexpr inline operator size_t ()const noexcept{return i;}
-        constexpr inline operator size_t &() noexcept{return i;}
-
-        inline std::string toString() const noexcept{
-            return std::to_string(i);
+        template <size_t index>
+        inline constexpr const auto & get() const noexcept{
+            static_assert(index != 0, "MultiIndex get: out of range");
+            return i;
         }
     };
 
-    
+    template <typename...Args>
+    inline constexpr auto make_MI(Args...args) noexcept{
+        return MultiIndex<Args...>(args...);
+    }
+    template <typename Head,typename...TailArgs>
+    inline constexpr auto make_MI_rec(Head _head,MultiIndex<TailArgs...> _tail) noexcept{
+        return MultiIndex<Head,TailArgs...>(_head,_tail);
+    }
+    template <typename Head,typename Tail>
+    inline constexpr auto make_MI_rec(Head _head,Tail _tail) noexcept{
+        return MultiIndex<Head,Tail>(_head,_tail);
+    }
+
+    namespace __detail_mi{
+        template <typename MultiIndexType,size_t...I>
+        inline constexpr auto to_tuple_impl(MultiIndexType const & MI,std::index_sequence<I...>) noexcept{
+            return std::make_tuple(MI.template get<I>()...);
+        }
+
+        template <typename TupleType,size_t...I>
+        inline constexpr auto make_MI_from_tuple_impl(TupleType && MI,std::index_sequence<I...>) noexcept{
+            return make_MI(std::get<I>(std::forward<TupleType>(MI))...);
+        }
+
+        template <typename Type,size_t...I>
+        inline constexpr auto make_MI_from_any_impl(Type && MI,std::true_type is_tuple,std::false_type is_multiindex) noexcept{
+            return make_MI_from_tuple_impl(std::forward<Type>(MI),
+                std::make_index_sequence<
+                    std::tuple_size<typename std::decay<Type>::type>::value
+                >{});
+        }
+        template <typename Type,size_t...I>
+        inline constexpr auto make_MI_from_any_impl(Type && MI,std::false_type is_tuple,std::false_type is_multiindex) noexcept{
+            return MultiIndex<std::decay_t<Type>>(std::forward<Type>(MI));
+        }
+        template <typename Type,size_t...I>
+        inline constexpr auto make_MI_from_any_impl(Type && MI,std::false_type is_tuple,std::true_type is_multiindex) noexcept{
+            return std::decay_t<Type>(std::forward<Type>(MI));
+        }
+
+        struct no_type{
+            template <typename Tp>
+            inline constexpr no_type (Tp &&){}
+        };
+        template <typename...Args>
+        auto is_tuple_impl(std::tuple<Args...>)->std::true_type;
+        auto is_tuple_impl(no_type)->std::false_type;
+
+        template <typename T>
+        struct is_tuple : public decltype(is_tuple_impl(std::declval<std::decay_t<T>>())){
+        };
+
+        template <typename...Args>
+        auto is_multiindex_impl(MultiIndex<Args...>)->std::true_type;
+        auto is_multiindex_impl(no_type)->std::false_type;
+
+        template <typename T>
+        struct is_multiindex : 
+        public decltype(is_multiindex_impl(std::declval<std::decay_t<T>>())){
+        };
+        
+    };
+
+    template <typename MultiIndexType>
+    inline constexpr auto to_tuple(MultiIndexType const & MI) noexcept {
+        return __detail_mi::to_tuple_impl(MI,std::make_index_sequence<std::decay<MultiIndexType>::type::Dim>{});
+    }
+    template <typename TupleType>
+    inline constexpr auto make_MI_from_tuple(TupleType && _Tp) noexcept{
+        return __detail_mi::make_MI_from_tuple_impl(
+            std::forward<TupleType>(_Tp),
+            std::make_index_sequence<std::tuple_size<typename std::decay<TupleType>::type>::value>{}
+        );
+    }
+
+    template <typename TypeIntMI_t>
+    inline constexpr auto make_MI_from_any(TypeIntMI_t && _Tp) noexcept{
+        return __detail_mi::make_MI_from_any_impl(
+                std::forward<TypeIntMI_t>(_Tp),
+                __detail_mi::is_tuple<TypeIntMI_t>{},
+                __detail_mi::is_multiindex<TypeIntMI_t>{}
+        );
+    }
+
+
     /// @brief Class, implementing multi dimention quad grid (Dim - dimention)
     /// @tparam GridType type of one dimention grid for 1st index
     /// @tparam GridContainerType type of container, containinng (Dim-1) grids
     template <typename GridType,typename GridContainerType>
     class  MultiGrid{
-    protected:
+        protected:
+
         GridType Grid;
         GridContainerType InnerGrids;
+        
         typedef _index_impl::_index_container<
                             typename std::remove_cv<
                                 typename std::remove_reference<GridContainerType>::type
@@ -124,43 +215,32 @@ namespace grob{
                             > _index_type_manager;
 
         typedef typename _index_type_manager::type GridIndexType;
+
+
         
-        mutable GridIndexType Indexes;
+        GridIndexType Indexes;
         //mutable size_t _size;
         const static bool _is_const_container = is_const_container<
         typename std::decay<GridContainerType>::type>::value;
         public:
         
 
-        typedef typename std::decay<GridType>::type::value_type value_type;
-        typedef typename std::decay<typename std::decay<GridContainerType>::type::value_type>::type InnerGridType;
+        typedef typename std::decay<GridType>::type::value_type value_type_0;
+        typedef typename std::decay<
+            typename std::decay<GridContainerType>::type::value_type
+        >::type InnerGridType;
         
-
+        typedef typename point_cat<value_type_0,typename InnerGridType::value_type>::type value_type;
 
         /// @brief dimention
         constexpr static size_t Dim =  1 + InnerGridType::Dim;
-        
-        typedef typename std::conditional<_is_const_container,
-                RectConst<value_type,typename InnerGridType::RectType>,
-                RectCommon<value_type,typename InnerGridType::RectType>
-            >::type RectType;
-        typedef typename std::conditional<_is_const_container,
-                    RectConst<size_t,typename InnerGridType::IndexRectType>,
-                    RectCommon<size_t,typename InnerGridType::IndexRectType>
-                >::type IndexRectType;
-
-        typedef typename templdefs::tuple_cat<value_type,typename InnerGridType::PointType>::type PointType;
-
+ 
         /// @brief full size (linear) 
         constexpr size_t size()const{return Indexes.back();}
         
         /// @brief 
-        inline MultiGrid()noexcept{
-            static_assert(is_histo_grid<typename std::decay<GridType>::type>::value == 
-            is_histo_grid<InnerGridType>::value,"Grid utilities (point/histo) mismatches at MultiGrid");
-        }
+        inline MultiGrid()noexcept{}
 
-        template <bool is_grid_1>
         friend class mesh_grids_helper;
 
         /// @brief 
@@ -168,56 +248,112 @@ namespace grob{
         noexcept(_index_type_manager::is_noexcept):
         Grid(std::forward<GridType>(Grid)),
         InnerGrids(std::forward<GridContainerType>(InnerGrids)){
-            static_assert(is_histo_grid<typename std::decay<GridType>::type>::value == 
-            is_histo_grid<InnerGridType>::value,"Grid utilities (point/histo) mismatches at MultiGrid");
             Indexes = _index_type_manager::Create(this->InnerGrids);
         }
 
-        
+        /// @brief MultiIndex of zeros
+        inline auto MultiZero() const{return make_MI_rec(Grid.MultiZero(),InnerGrids[0].MultiZero());}
+
+        typedef decltype(make_MI_rec(Grid.MultiZero(), InnerGrids[0].MultiZero())) MultiIndexType;
+
+        /// @brief cheks if MultiIndex out of range
+        /// @param mi 
+        /// @return 
+        template <typename MultiIndexType_in = MultiIndexType>
+        inline constexpr size_t IsEnd(MultiIndexType_in const& mi)const noexcept{
+            return Grid.IsEnd(mi.i);
+        }
+
+        /// @brief increments MultiIndex in order to loop thorough grid
+        /// @param mi 
+        template <typename MultiIndexType_in = MultiIndexType>
+        inline void MultiIncrement(MultiIndexType_in & mi) const noexcept{
+            size_t i = Grid.LinearIndex(mi.i);
+            InnerGrids[i].MultiIncrement(mi.m);
+            if(InnerGrids[i].IsEnd(mi.m)){
+                Grid.MultiIncrement(mi.i);
+                mi.m = InnerGrids[i].MultiZero();
+            }
+        }
+
+        /// @brief gives linear position of Multiindex(i0,indexes...)
+        template <typename...TailIndex>
+        inline size_t LinearIndex(MultiIndex<typename MultiIndexType::Head,TailIndex...> const & mi)const noexcept
+        {
+            size_t i = Grid.LinearIndex(mi.i);
+            return Indexes[i] + InnerGrids[i].LinearIndex(mi.m);
+        }
+        /// @brief gives linear position of Multiindex(i0,indexes...)
+        template <typename HeadIndex>
+        inline size_t LinearIndex(HeadIndex const & mi)const noexcept
+        {
+            return Indexes[Grid.LinearIndex(mi)];
+        }
+
+        /// @brief return MultiIndex  corresponding to linear index (works with time O(log2(N)^Dim) )
+        inline MultiIndexType FromLinear (size_t i)const noexcept{
+            size_t index_ = _index_impl::find_index(Indexes,i);
+            return {Grid.FromLinear(index_),
+                        InnerGrids[index_].FromLinear(i-Indexes[index_])
+                    };
+        }
 
 
         /// @brief check if x1..xn into grid
-        template <typename...Args>
-        inline bool contains(Args const&...args)const noexcept{
-            return contains_tuple(std::make_tuple(args...));
+        template <typename Arg, typename...Args>
+        inline bool contains(Arg const& arg,Args const&...args)const noexcept{
+            return Grid.contains(arg) && 
+            InnerGrids[ Grid.LinearIndex(Grid.pos(arg))].contains(args...);
         }
+        /*
+        /// @brief check if x1..xn into grid
+        template <typename...Args,
+                    typename = 
+                        std::enable_if<sizeof...Args > value_type::Dim,bool>::type
+                >
+        inline bool contains(Args const&...args)const noexcept{
+            return contains_tuple(value_type(args...).as_tuple());
+        }*/
 
         /// @brief same as contains, (x1,...xn) packed into tuple
         template <size_t tuple_index = 0,typename...Args>
         inline bool contains_tuple(std::tuple<Args...> const& T) const noexcept{
-            if(!Grid.contains(std::get<tuple_index>(T)))
-                return false;
-            size_t i = Grid.pos(std::get<tuple_index>(T));
-            if(_is_const_container){
-                return InnerGrids[i].template contains_tuple<tuple_index+1>(T);
-            }
-            else{
-                return InnerGrids[i].template contains_tuple<tuple_index+1>(T) && InnerGrids[i+1].template contains<tuple_index+1>(T);
-            }
+            return Grid.contains(std::get<tuple_index>(T)) &&
+            InnerGrids[ Grid.LinearIndex(Grid.pos(std::get<tuple_index>(T)))].template 
+                contains_tuple<tuple_index+1>(T);
         }
 
-        /// @brief chack and MultiIndex matching tuple(args...) 
-        /// @return tuple(bool: is_contains,Multiindex  pos)
+        /// @brief check and find MultiIndex matching tuple(args...) 
+        /// @return tuple(bool: is_contains,MultiIndex  pos)
         template <typename...Args>
-        auto spos(Args const&...args){
-            return spos(std::make_tuple(args...));
+        inline constexpr auto spos(Args &&...args) const noexcept{
+            return spos_tuple(make_point(std::forward<Args>(args)...).as_tuple());
         }
 
-        /// @brief chack and MultiIndex matching tuple(args...) 
+        /// @brief check and MultiIndex matching tuple(args...) 
         /// @return tuple(bool: is_contains,Multiindex  pos)
-        template <typename...Args>
-        auto spos(std::tuple<Args...> const& TX){
+        template <size_t tuple_index = 0,typename...Args>
+        inline constexpr auto spos_tuple(std::tuple<Args...> const& TX) const noexcept{
             bool b = true;
-            MultiIndex<Dim> MI;
-            fill_index_tuple_save_impl(TX,b,MI);
+            MultiIndexType MI;
+            fill_index_tuple_save_impl(TX,MI,b);
             return std::make_tuple(b,MI);
+        }
+        template <size_t tuple_index = 0,typename Tuple,typename Index>
+        inline constexpr void fill_index_tuple_save_impl(Tuple const & _Tp,
+                                                    Index & index_to_fill,
+                                                    bool & b)const noexcept{
+            Grid.template fill_index_tuple_save_impl<tuple_index>(_Tp,index_to_fill.i,b);
+            if(b)
+                InnerGrids[Grid.LinearIndex(index_to_fill.i)].template 
+                fill_index_tuple_save_impl<tuple_index+1>(_Tp,index_to_fill.m,b);
         }
 
         /// @brief MultiIndex matching args... 
         template <typename T,typename...Other>
         inline auto pos(T const & x,Other const&...Y) const noexcept{
-            size_t i =  Grid.pos(x);
-            return MultiIndex<std::tuple_size<std::tuple<T,Other...>>::value>(i,InnerGrids[i].pos(Y...));
+            auto i =  Grid.pos(x);
+            return MultiIndexType(i,InnerGrids[Grid.LinearIndex(i)].pos(Y...));
         }
         template <typename T>
         inline  auto pos(T const & x) const noexcept{
@@ -225,108 +361,30 @@ namespace grob{
         }
 
         /// @brief MultiIndex matching tuple(args...) 
-        template <typename...T>
-        inline  auto pos(std::tuple<T...> const & X) const noexcept{
-            MultiIndex<std::tuple_size<std::tuple<T...>>::value> MI;
-            fill_index_tuple_impl<0>(X,MI);
-            return MI;
-        }
+        template <size_t tuple_index,typename...T>
+        inline  auto pos_tuple(std::tuple<T...> const & X) const noexcept{
+            static_assert(sizeof...(T) != Dim,"in pos_tuple tuple size doesn't match Dim");
+            auto i = Grid.template pos_tuple<tuple_index>(X);
+            return MultiIndexType(i,
+                InnerGrids[Grid.LinearInde(i)].template pos_tuple<tuple_index+1>(X)
+            );
+        }       
 
-        /// @brief gives indexes (or MultiIndex) of points (or intervals) correspond to x,...args 
-        /// @return border points of element, contating args or MultiIndex for HistoGrids of retangle 
-        template <typename T,typename...Other>
-        inline auto FindIndex(T const&x,Other const&...args) const noexcept{
-            return FindIndex(std::make_tuple(x,args...));
-        }
-
-        /// @brief same as FindIndex(args...)
-        template <typename T,typename...Args>
-        inline auto FindIndex(std::tuple<T,Args...> const & X) const noexcept{
-            typedef decltype(InnerGrids[std::declval<size_t>()].FindIndex(std::declval<Args>()...)) InnerIndexType;
-            typedef typename std::conditional<_is_const_container,
-                            RectConst<size_t,InnerIndexType>,
-                            RectCommon<size_t,InnerIndexType>>::type RetIndexType;
-            RetIndexType I;
-            fill_rect_index_impl<0>(X,I);
-            return I;
-        }
-        template <typename T>
-        inline auto FindIndex(std::tuple<T> const & X) const noexcept{
-            return Grid.FindIndex(std::get<0>(X));
-        }
-
-
-        /// @brief gives indexes from FindIndex(...) and corresponding values
-        /// @return tuple(FindIndex(...),Rect()... )
-        template <typename T,typename...Other>
-        inline auto FindElement(T const& x,Other const&...args) const noexcept{
-            return FindElement(std::make_tuple(x,args...));
-        }
-
-        /// @brief same as  FindElement(...), but for tuple
-        template <typename...Args>
-        inline auto FindElement(std::tuple<Args...> const & X) const noexcept{
-            std::tuple<IndexRectType, RectType> IR;
-            fill_element<0>(X,std::get<0>(IR),std::get<1>(IR));
-            return IR;
-        }
-
-
-        /// @brief MultiIndex of zeros
-        inline static MultiIndex<Dim> Multi0(){return MultiIndex<Dim>();}
-
-        /// @brief last MultiIndex 
-        inline MultiIndex<Dim> MultiSize()const{return MultiIndex<Dim>(InnerGrids.size(),MultiIndex<Dim-1>());}
-
-        /// @brief cheks if MultiIndex out of range
-        /// @param mi 
+        /// @brief gives multidim point or rectangle 
         /// @return 
-        inline constexpr size_t IsEnd(MultiIndex<Dim> const& mi)const noexcept{
-            return mi.i == Grid.size();
+        template <typename IndexHead,typename...IndexTail> 
+        inline auto  operator [] (const MultiIndex<IndexHead,IndexTail...> &mi)const noexcept {
+            return make_point_ht(Grid[mi.i],InnerGrids[Grid.LinearIndex(mi.i)][mi.m]);
+        } 
+        
+        template <typename IndexHead> 
+        inline auto  operator [] (const MultiIndex<IndexHead> & i)const noexcept {
+            return Grid[i.i];
         }
-
-        /// @brief increments MultiIndex in order to loop thorough grid
-        /// @param mi 
-        inline void MultiIncrement(MultiIndex<Dim> & mi) const noexcept{
-            InnerGrids[mi.i].MultiIncrement(mi.m);
-            if(InnerGrids[mi.i].IsEnd(mi.m)){
-                ++mi.i;
-                mi.m = 0;
-            }
-        }
-
-
-        /// @brief gives linear position of Multiindex(i0,indexes...)
-        template <typename...Ints>
-        inline size_t LinearIndex(size_t i0,Ints...indexes)const noexcept
-        {
-            return Indexes[i0] + InnerGrids[i0].LinearIndex(indexes...);
-        }
-        inline size_t LinearIndex(size_t i)const noexcept
-        {
-            return Indexes[i];
-        }
-
-        /// @brief gives linear position of Multiindex mi
-        template <size_t N>
-        inline size_t LinearIndex(const MultiIndex<N> &mi)const noexcept{
-            return Indexes[mi.i] + InnerGrids[mi.i].LinearIndex(mi.m);
-        }
-
-        inline size_t LinearIndex(const MultiIndex<1> &i)const noexcept{
-            return Indexes[i];
-        }
-
-        /// @brief return MultiIndex  corresponding to linear index (works with time O(log2(N)^Dim) )
-        inline MultiIndex<Dim> FromLinear (size_t i)const noexcept{
-            size_t index_ = __find_int_index_sorted_with_guess(Indexes,i) ;
-            size_t prev_size_ = Indexes[index_];
-            return MultiIndex<Dim>(index_,InnerGrids[index_].FromLinear(i-prev_size_));
-        }
-
+        
 
         /// @brief grid of first dim 
-        inline auto const & first()const noexcept {
+        inline auto const & grid()const noexcept {
             return Grid;
         }
         /// @brief gives inner grid 
@@ -338,86 +396,64 @@ namespace grob{
         /// @tparam N 
         /// @param mi 
         /// @return inner(int i) -> InnerGrids[i], inner( (i,j)) -> InnerGrids[i].inner(j) ...
-        template <size_t N> 
-        inline auto const & inner(const  MultiIndex<N> &mi)const noexcept {
-            return InnerGrids[mi.i].inner(mi.m);
+        template <typename IndexHead,typename...IndexTail> 
+        inline auto const & inner(const MultiIndex<IndexHead,IndexTail...> &mi)const noexcept {
+            return InnerGrids[Grid.LinearIndex(mi.i)].inner(mi.m);
         }
 
-        //template <> 
-        inline auto const & inner(const  MultiIndex<1> &i)const noexcept {
-            return InnerGrids[i];
+        template <typename IndexType> 
+        inline auto const & inner(const  IndexType &i)const noexcept {
+            return InnerGrids[Grid.LinearIndex(i)];
+        }
+
+        struct iterator{
+            protected:
+            MultiGrid const&  __MG;
+            MultiIndexType Position;
+
+            public:
+            inline const auto & index() const{
+                return Position;
+            }
+            inline auto & index(){
+                return Position;
+            }
+            inline operator MultiGrid const& ()const{
+                return __MG;
+            }
+
+            iterator(MultiGrid const&  __MG, MultiIndexType Position):__MG(__MG),Position(Position){}
+            inline iterator & operator ++(){
+                __MG.MultiIncrement(Position);
+                return *this;
+            }
+            inline iterator & operator ++(int){
+                iterator __tmp = *this;
+                ++(*this);
+                return __tmp;
+            }
+            inline auto operator *() const{
+                return __MG[Position];
+            }
+
+            template <typename T>
+            inline bool operator !=(T const &)const{
+                return !__MG.IsEnd(Position);
+            }
+        };
+        inline iterator begin() const{
+            return iterator{*this,MultiZero()};
+        }
+        inline iterator end() const{
+            return iterator{*this,MultiZero()};
+        }
+        inline iterator cbegin()const{
+            return begin();
+        }
+        inline iterator cend()const{
+            return end();
         }
         
-        /// @brief gives multidim point or rectangle 
-        /// @return 
-        template <size_t N,typename std::enable_if<N!=1,bool>::type = true> 
-        inline auto  operator [] (const  MultiIndex<N> &mi)const noexcept {
-            typename templdefs::tuple_cat<value_type,typename std::decay<decltype(InnerGrids[std::declval<size_t>()][mi.m])>::type>::type P;
-            //typename std::decay<decltype(InnerGrids[mi.m])>::type _DD_;
-
-            
-            //_DD_ = 1;
-
-            fill_tuple<0>(P,mi);
-            return P;
-        }
-
-        /// @brief maps first dimention grid 
-        inline auto  operator [] (size_t i)const noexcept {
-            return Grid[i];
-        }
-        
-
-        template <size_t shift,typename RectIndex,typename...T>
-        inline  void fill_rect_index_impl(std::tuple<T...> const & TX,RectIndex & MI) const noexcept{
-            Grid.template fill_rect_index_impl<shift>(TX,MI.first());
-            InnerGrids[MI.left()].template fill_rect_index_impl<shift+1>(TX,MI.inner_left());
-            if(!_is_const_container){
-                InnerGrids[MI.right()].template fill_rect_index_impl<shift+1>(TX,MI.inner_right());
-            }
-        }
-
-        template <size_t shift = 0,typename...T>
-        inline  void fill_index_tuple_save_impl(std::tuple<T...> const & TX,bool & b,MultiIndex<Dim> & MI) const noexcept{
-            if(b){
-                Grid.template fill_index_tuple_save_impl<shift>(TX,b,MI.i);
-                if(b){
-                    InnerGrids[MI.i].template fill_index_tuple_save_impl<shift+1>(TX,b,MI.m);
-                }
-            }
-        }
-
-        template <size_t shift,size_t N ,typename...T>
-        inline  void fill_index_tuple_impl(std::tuple<T...> const & TX,MultiIndex<N> & MI) const noexcept{
-            Grid.template find_index_tuple_impl<shift>(TX,MI.i);
-            InnerGrids[MI.i].template fill_index_tuple_impl<shift+1>(TX,MI.m);
-        }
-        template <size_t shift,typename...T>
-        inline  void fill_index_tuple_impl(std::tuple<T...> const & TX,size_t & MI) const noexcept{
-            Grid.template find_index_tuple_impl<shift>(TX,MI);
-        }
-
-        template <size_t shift,size_t N,typename...T>
-        inline  void fill_tuple(std::tuple<T...> & TX,MultiIndex<N> const& MI) const noexcept{
-            Grid.template fill_tuple<shift>(TX,MI.i);
-            InnerGrids[MI.i].template fill_tuple<shift+1>(TX,MI.m);
-        }
-        template <size_t shift,typename...T>
-        inline  void fill_tuple(std::tuple<T...> & TX,MultiIndex<1> const& MI) const noexcept{
-            Grid.template fill_tuple<shift>(TX,MI);
-        }
-
-        template <size_t shift,typename IndexElement,typename RectElement,typename...T>
-        inline  void fill_element(std::tuple<T...> const& TX,IndexElement & IE,RectElement & RE) const noexcept{
-            Grid.template fill_element<shift>(TX,IE.first(),RE.first());
-            if(_is_const_container){
-                InnerGrids[IE.left()].template fill_element<shift+1>(TX,IE.inner_left(),RE.inner_left());
-            }else{
-                InnerGrids[IE.left()].template fill_element<shift+1>(TX,IE.inner_left(),RE.inner_left());
-                InnerGrids[IE.right()].template fill_element<shift+1>(TX,IE.inner_right(),RE.inner_right());
-            }
-        }
-
         /// @brief  
         friend std::ostream & operator << (std::ostream & os,const MultiGrid &MG){
             std::ostringstream S;
@@ -427,112 +463,22 @@ namespace grob{
             S << ")";
             return os << S.str();
         }
-        /// @brief 
-        template <typename Serializer>
-        auto Serialize(Serializer && S)const{
-            return S.MakeDict(2,
-                [](size_t i){ return (!i?"Grid":"InnerGrids");},
-                [this,&S](size_t i){
-                    return ( !i? stools::Serialize(Grid,S) : 
-                        stools::Serialize(InnerGrids,S));
-                    }
-            );
-        }
-
-        /// @brief 
-        template <typename Object,typename DeSerializer>
-        static MultiGrid DeSerialize(Object && Obj,DeSerializer && DS){
-            return MultiGrid(stools::DeSerialize<GridType>(DS.GetProperty(Obj,"Grid"),DS),
-                            stools::DeSerialize<GridContainerType>(DS.GetProperty(Obj,"InnerGrids"),DS));
-        }
-
-        /// @brief 
-        template <typename ObjecType,typename DeSerializer>
-        void init_serialize(ObjecType && Object,DeSerializer && S){
-            stools::init_serialize(Grid,S.GetProperty(Object,"Grid"));
-            stools::init_serialize(InnerGrids,S.GetProperty(Object,"InnerGrids"));
-        }
-        /// @brief 
-        template <typename WriterStreamType>
-        void write(WriterStreamType && w)const{
-            stools::write(Grid,w);
-            stools::write(InnerGrids,w);
-        }
-        /// @brief 
-        template <typename ReaderStreamType>
-        void init_read(ReaderStreamType && r){
-            stools::init_read(Grid,r);
-            stools::init_read(Grid,r);
-        }
-        /// @brief 
-        template <typename ReaderStreamType>
-        static auto read(ReaderStreamType && r){
-            auto Grid = stools::read<typename std::decay<GridType>::type>(r);
-            auto InnerGrids = stools::read<typename std::decay<GridContainerType>::type>(r);
-            return MultiGrid(std::move(Grid),std::move(InnerGrids));
-        }
-
-
-    };
-
-    template <typename GridType,typename GridContainerType>
-    struct MultiGridHisto: public MultiGrid<GridType,GridContainerType>{
-        typedef MultiGrid<GridType,GridContainerType> GBase;
-        using GBase::GBase;
-        typedef RectConst<typename GridType::value_type,typename GBase::InnerGridType::ElementType> ElementType;
         
-        MultiGridHisto(GBase Base):GBase(std::move(Base)){
-            static_assert(is_histo_grid<typename std::decay<GridType>::type>::value && 
-                         is_histo_grid<typename GBase::InnerGridType>::value,
-                         "Histo Grid should be created only from histo grids");
-        }
-
-        template <typename T,typename...Other>
-        inline auto FindElement(T const& x,Other const&...args) const noexcept{
-            return FindElement(std::make_tuple(x,args...));
-        }
-
-        template <typename...Args>
-        inline auto FindElement(std::tuple<Args...> const & X) const noexcept{
-            typedef MultiIndex<std::tuple_size<std::tuple<Args...>>::value> Index;
-            std::tuple<Index, decltype((*this)[std::declval<Index>()])> IR;
-            fill_element<0>(X,std::get<0>(IR),std::get<1>(IR));
-            return IR;
-        }
         
-        template <size_t shift,size_t N,typename RectElement,typename...T>
-        inline constexpr void fill_element(std::tuple<T...> const& TX,MultiIndex<N> & MI,RectElement & RE) const noexcept{
-            GBase::Grid.template fill_element<shift>(TX,MI.i,RE.first());
-            GBase::InnerGrids[MI.i].template fill_element<shift+1>(TX,MI.m,RE.inner());
-        }
+        SERIALIZATOR_FUNCTION(PROPERTY_NAMES("Grid","InnerGrids"),
+                              PROPERTIES(Grid,InnerGrids))
+        WRITE_FUNCTION(Grid,InnerGrids)
+        DESERIALIZATOR_FUNCTION(MultiGrid,
+            PROPERTY_NAMES("Grid","InnerGrids"),
+            PROPERTY_TYPES(Grid,InnerGrids))
+        READ_FUNCTION(MultiGrid,PROPERTY_TYPES(Grid,InnerGrids))
 
-        template <typename RectElement,size_t N>
-        inline void fill_rect(RectElement & R,MultiIndex<N> const& MI){
-            GBase::Grid.fill_rect(R.first(),MI.i,R.first());
-            GBase::InnerGrids[MI.i].fill_rect(R.inner(),MI.m);
-        }
-
-        template <size_t N> 
-        inline auto  operator [] (const  MultiIndex<N> &mi)const noexcept {
-            return(make_rect(GBase::Grid[mi.i],GBase::InnerGrids[mi.i][mi.m]));
-        }
-        inline auto  operator [] (const  size_t &mi)const noexcept {
-            return GBase::Grid[mi];
-        }
-
-        INHERIT_SERIALIZATOR(GBase,MultiGridHisto)
-        INHERIT_READ(GBase,MultiGridHisto)
-
-    };
-    template <typename GridType,typename GridContainerType>
-    struct is_histo_grid<MultiGridHisto<GridType,GridContainerType>>{
-        constexpr static bool value = true;
     };
 
     namespace gtypes{
-        template <typename GridType,typename InnerGrid>
+        template <typename GridType,typename InnerGrid,typename...Alloc>
         struct _inner_container_type{
-            typedef std::vector<InnerGrid> type;
+            typedef std::vector<InnerGrid,Alloc...> type;
 
             template <typename Initializer>
             static type Create(const GridType & Grid,Initializer && Lmbd){
@@ -558,70 +504,35 @@ namespace grob{
             };
         };
         
-        template <typename T,size_t size,typename InnerGrid>
-        struct _inner_container_type<GridArrayHisto<T,size>,InnerGrid>:
-            public _inner_container_type<GridArray<T,size>,InnerGrid>{
-            using _inner_container_type<GridArray<T,size>,InnerGrid>::_inner_container_type;
-        };
-
         template <typename GridTypeA, typename GridContainerType>
         struct _build_helper{
             typedef typename std::decay<GridTypeA>::type GType;
             typedef typename std::decay<GridContainerType>::type GCType;
             typedef MultiGrid<GType,GCType> MGType;
         };
-        template <typename GridTypeA, typename GridContainerType>
-        struct _build_helper_histo:public _build_helper<GridTypeA,GridContainerType>{
-            typedef _build_helper<GridTypeA,GridContainerType> BBase;
-            using BBase::BBase;
-            typedef MultiGridHisto<typename BBase::GType,typename BBase::GCType> MGType;
-        };
     }
 
-    /// @brief makes point grid
+    /// @brief makes grid
     /// @param GridA first dim grid
     /// @param GContainer ontainer of  inner grids
     /// @return MultiGrid(GridA,GContainer)
     template <typename GridTypeA, typename GridContainerType>
-    constexpr inline auto make_grid_point(GridTypeA && GridA,GridContainerType && GContainer){
+    constexpr inline auto make_grid(GridTypeA && GridA,GridContainerType && GContainer){
         return typename gtypes::_build_helper<GridTypeA,GridContainerType>::MGType
             (std::forward<GridTypeA>(GridA),std::forward<GridContainerType>(GContainer));
     }
 
-    /// @brief makes histo grid
-    /// @param GridA first dim grid
-    /// @param GContainer ontainer of  inner grids
-    /// @return MultiGridHisto(GridA,GContainer)
-    template <typename GridTypeA, typename GridContainerType>
-    constexpr inline auto make_grid_histo(GridTypeA && GridA,GridContainerType && GContainer){
-        return typename gtypes::_build_helper_histo<GridTypeA,GridContainerType>::MGType
-            (HistoCast(GridA),std::forward<GridContainerType>(GContainer));
-    }
-
-    /// @brief makes point/histo grid depending on types
-    template <typename GridTypeA, typename GridContainerType>
-    constexpr inline typename std::conditional<
-                                    is_histo_grid<
-                                        typename std::decay<GridTypeA>::type
-                                    >::value,typename gtypes::_build_helper_histo<GridTypeA,GridContainerType>::MGType,
-                                    typename gtypes::_build_helper<GridTypeA,GridContainerType>::MGType
-                                >::type 
-        make_grid(GridTypeA && GridA,GridContainerType && GContainer){
-
-        return make_grid_point(std::forward<GridTypeA>(GridA),std::forward<GridContainerType>(GContainer));
-    }
-
-    /// @brief makes point/histo grid from funcion initializer 
+    /// @brief makes grid from funcion initializer 
     /// @param GridA grid1
     /// @param LambdaInitializer callable instance, LambdaInitializer(int i) -> i'th inner grid
     /// @return 
     template <typename GridTypeA, typename LambdaInitializerType>
-    auto make_grid_f(GridTypeA && GridA,LambdaInitializerType && LambdaInitializer){
+    inline auto make_grid_f(GridTypeA && GridA,LambdaInitializerType && LambdaInitializer){
         return make_grid(
             std::forward<GridTypeA>(GridA),
             gtypes::_inner_container_type<
                     typename std::decay<GridTypeA>::type,
-                    typename std::invoke_result<LambdaInitializerType,size_t>::type
+                    decltype(LambdaInitializer(std::declval<size_t>()))
                 >::Create(GridA,LambdaInitializer)
         );
     }
@@ -631,53 +542,10 @@ namespace grob{
     /// @param GridB 
     /// @return decart product of two grids
     template <typename GridTypeA,typename GridTypeB>
-    auto mesh_grids(GridTypeA && GridA,GridTypeB && GridB);
-
-    template <bool is_1dim_grid>
-    struct mesh_grids_helper{
-        template <typename GridTypeA,
-                    typename GridTypeB,typename  = typename std::enable_if<
-                                                !templdefs::is_shared_ptr<typename std::decay<GridTypeB>::type>::value,
-                                                bool >::type>
-        inline static auto mesh_grids_(GridTypeA && GridA,GridTypeB&& GridB)
-        {
+    inline auto mesh_grids(GridTypeA && GridA,GridTypeB && GridB){
             size_t size = GridA.size();
             return make_grid(std::forward<GridTypeA>(GridA),
-                ConstValueVector<typename std::decay<GridTypeB>::type>(std::forward<GridTypeB>(GridB),size));
-        }
-
-        template <typename GridTypeA,typename GridTypeB>
-        inline static auto mesh_grids_(GridTypeA && GridA,std::shared_ptr<GridTypeB> GridB){
-            size_t size = GridA.size();
-            return make_grid(std::forward<GridTypeA>(GridA),
-                ConstSharedValueVector<GridTypeB>(size,std::forward<std::shared_ptr<GridTypeB>>(GridB)));
-        }
-    };
-    template <>
-    struct mesh_grids_helper<false>{
-        template <typename GridTypeA,typename GridTypeB,typename  = typename std::enable_if<
-                                                !templdefs::is_shared_ptr<typename std::decay<GridTypeB>::type>::value,
-                                                bool >::type>
-        inline static auto mesh_grids_(GridTypeA && GridA,GridTypeB&& GridB){
-            auto sh_GridB = std::make_shared<typename std::decay<GridTypeB>::type>(std::forward<GridTypeB>(GridB));
-            //size_t size = GridA.Grid.size();
-            return make_grid(GridA.Grid,map(GridA.InnerGrids,[&sh_GridB](auto &&grid){
-                return mesh_grids_helper<std::decay<decltype(grid)>::type::Dim == 1>::mesh_grids_(std::forward<decltype(grid)>(grid),sh_GridB);
-            }));
-        }
-        template <typename GridTypeA,typename GridTypeB>
-        inline static auto mesh_grids_(GridTypeA && GridA,std::shared_ptr<GridTypeB> GridB){
-            //size_t size = GridA.size();
-            return make_grid(GridA.Grid,map(GridA.InnerGrids,[&GridB](auto &&grid){
-                return mesh_grids_helper<std::decay<decltype(grid)>::type::Dim == 1>::mesh_grids_(std::forward<decltype(grid)>(grid),GridB);
-            }));
-        }
-    };
-
-    template <typename GridTypeA,typename GridTypeB>
-    auto mesh_grids(GridTypeA && GridA,GridTypeB && GridB){
-        return mesh_grids_helper<std::decay<GridTypeA>::type::Dim == 1>
-        ::mesh_grids_(std::forward<GridTypeA>(GridA),GridB);
+                ConstValueVector<typename std::decay<GridTypeB>::type>(std::forward<GridTypeB>(GridB),size));   
     }
 
     

@@ -2,11 +2,11 @@
 
 #include "debug_defs.hpp"
 
-#include "../src/container_shift.hpp"
+#include "../include/grob/container_shift.hpp"
 
-#include "../src/grid.hpp"
+#include "../include/grob/grid.hpp"
 
-#include "../src/multigrid.hpp"
+#include "../include/grob/multigrid.hpp"
 #include <vector>
 #include <array>
 
@@ -24,25 +24,33 @@ int main(){
     cout << MG[I] << endl;
 
     auto MG1 = grob::make_grid(U,VU);
-
+    
     //using namespace stools::print_vector; 
     //cout << VU << endl;
     cout << MG1 << endl;
 
     stools::SerializatorJson S(std::cout);
     //stools::Serialize(MG1,S);
-
+    
     auto G2 = grob::mesh_grids(U,U);
     cout << G2 <<endl;
 
+    for(auto p : G2){
+        cout << p << endl;
+    }
+    
+
     auto Grid2 = grob::make_grid_f(
-        U,[=](size_t i){
-            return grob::GridUniform<double>(0,1,i+2);
+        grob::GridUniformHisto<double>(0,1,4),[=](size_t i){
+            return grob::GridUniformHisto<double>(0,1,i+2);
         }
     );
 
     PVAR(Grid2);
-
+    for(auto p : Grid2){
+        cout << p << endl;
+    }
+    /*
     auto G3 = grob::mesh_grids(G2,U);
 
 
@@ -53,9 +61,6 @@ int main(){
 
 
     //auto G4 = grob::mesh_grids(G23,U);
-
-    print(G3.FindIndex(0.1,0.5,0.7));
-    print(G3.FindElement(0.1,0.5,0.7));
-    print("version 1 1 6");
+    print("version 1 1 6");*/
     return 0;
 }

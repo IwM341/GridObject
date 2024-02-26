@@ -13,6 +13,8 @@ struct vector_view{
     inline constexpr vector_view(T * values = nullptr,size_t _size = 0)noexcept:values(values),_size(_size){}
     inline constexpr size_t size() const noexcept{return _size;}
 
+    template <typename ...Args>
+    inline constexpr vector_view(std::vector<T,Args...> & Vec,size_t shift)noexcept:values(Vec.data()+shift),_size(Vec.size()-shift){}
     
     inline operator T * ()noexcept{return values;}
     inline operator const T * () const noexcept{return values;}
@@ -75,44 +77,45 @@ struct container_iterator{
 
 template <typename ContainerType>
 struct container_slice{
-    ContainerType * _container;
+    ContainerType & _container;
     size_t _begin;
     size_t _size;
-    typedef typename std::decay<decltype((*_container)[std::declval<size_t>()])>::type value_type;
-    typedef decltype((*_container)[std::declval<size_t>()]) ref_type;
+    typedef typename std::decay<decltype((&_container)[std::declval<size_t>()])>::type value_type;
+    typedef decltype((_container)[std::declval<size_t>()]) ref_type;
 
-    inline container_slice(ContainerType *_container,size_t _begin = 0,size_t _size = 0)noexcept:
-        _container(&_container),_begin(_begin),_size(_size){}
+    inline container_slice(ContainerType &_container,size_t _begin = 0,size_t _size = 0)noexcept:
+        _container(_container),_begin(_begin),_size(_size){}
     inline size_t size() const noexcept{return _size;}
     
-    inline  const ref_type operator[](size_t i)const noexcept(noexcept((*_container)[std::declval<size_t>()])) 
-        {return (*_container)[_begin+i];}
-    inline ref_type operator[](size_t i)noexcept(noexcept((*_container)[std::declval<size_t>()]))
-        {return (*_container)[_begin+i];}
+    inline  const ref_type operator[](size_t i)const noexcept(noexcept((_container)[std::declval<size_t>()])) 
+        {return _container[_begin+i];}
+    inline ref_type operator[](size_t i)noexcept(noexcept((_container)[std::declval<size_t>()]))
+        {return _container[_begin+i];}
     
     friend inline bool operator ==(const container_slice & s1,const container_slice & s2) noexcept{
-        return (s1._begin == s2._begin && s1._container == s2._container && s1._size == s2._size);
+        return (s1._begin == s2._begin && &s1._container == &s2._container && s1._size == s2._size);
     }
     friend inline bool operator !=(const container_slice & s1,const container_slice & s2) noexcept{
-        return (s1._begin != s2._begin || s1._container != s2._container || s1._size != s2._size);
+        return (s1._begin != s2._begin || &s1._container != &s2._container || s1._size != s2._size);
     }
 
     typedef container_iterator<ContainerType> iterator;
     typedef container_iterator<const ContainerType> const_iterator;
 
-    inline iterator begin() noexcept{return iterator(_container,_begin);}
-    inline iterator end() noexcept{return iterator(_container,_begin+_size);}
-    inline const_iterator cbegin()const noexcept{return const_iterator(_container,_begin);}
-    inline const_iterator cend()const noexcept{return const_iterator(_container,_begin+_size);}
-    inline const_iterator begin()const noexcept{return const_iterator(_container,_begin);}
-    inline const_iterator end()const noexcept{return const_iterator(_container,_begin+_size);}
+    inline iterator begin() noexcept{return iterator(&_container,_begin);}
+    inline iterator end() noexcept{return iterator(&_container,_begin+_size);}
+    inline const_iterator cbegin()const noexcept{return const_iterator(&_container,_begin);}
+    inline const_iterator cend()const noexcept{return const_iterator(&_container,_begin+_size);}
+    inline const_iterator begin()const noexcept{return const_iterator(&_container,_begin);}
+    inline const_iterator end()const noexcept{return const_iterator(&_container,_begin+_size);}
 };
 
 template <typename Container>
-struct container_slice<container_slice<Container>>:container_slice<Container>{
-    using container_slice<Container>::container_slice;
-    container_slice<container_slice<Container>>(container_slice<Container> cnt,size_t _shift,size_t _size):
-        container_slice<Container>(cnt._container,cnt._begin+_shift,_size){}
+struct container_slice<container_slice<Container>>:public container_slice<Container>{
+    typedef container_slice<Container> C_Base; 
+    using C_Base::C_Base;
+    container_slice(C_Base * cnt,size_t _shift,size_t _size):
+        container_slice<Container>(cnt->_container,cnt->_begin+_shift,_size){}
 };
 
 template <typename IndexingType>
@@ -140,9 +143,13 @@ struct Shift{
 
 template <typename IndexingType>
 inline auto make_slice(IndexingType &Container,size_t shift,size_t size = 0)noexcept{
-    return container_slice<IndexingType>(&Container,shift,size);
+    return container_slice<IndexingType>(Container,shift,size);
 }
 
+template <typename T>
+inline auto make_slice(T* data, size_t shift, size_t size = 0)noexcept {
+    return vector_view<T>(data+shift, size - shift);
+}
 
 template <typename T>
 inline auto make_slice(vector_view<T> &Container,size_t shift,size_t size = 0)noexcept{

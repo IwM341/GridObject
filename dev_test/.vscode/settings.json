@@ -62,8 +62,6 @@
         "numeric": "cpp",
         "random": "cpp",
         "bitset": "cpp",
-        "regex": "cpp",
-        "valarray": "cpp",
-        "sparse": "cpp"
+        "regex": "cpp"
     }
 }

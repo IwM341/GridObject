@@ -5,20 +5,20 @@
 #include <iostream>
 #include <sstream>
 #include "object_serialization.hpp"
-
+#include "iterator_template.hpp"
 namespace grob{
     
     template <typename T>
     class ConstValueVector{
         
         T value;
-        size_t size_;
+        size_t _size;
 
         public:
         typedef T value_type;
 
         inline constexpr size_t size() const noexcept{
-            return size_;
+            return _size;
         }
         inline constexpr T const& operator[](size_t) const noexcept{
             return value;
@@ -27,10 +27,12 @@ namespace grob{
             return value;
         }
 
-        ConstValueVector(size_t size_ = 0):size_(size_){}
-        inline constexpr ConstValueVector(T value,size_t size_ = 0) noexcept:value(std::forward<T>(value)),size_(size_) {}
+        ConstValueVector(size_t _size = 0):_size(_size){}
+        inline constexpr ConstValueVector(T value,size_t _size = 0) noexcept:
+            value(std::forward<T>(value)),
+            _size(_size) {}
         
-        inline void resize(size_t new_size)noexcept{size_ = new_size;}
+        inline void resize(size_t new_size)noexcept{_size = new_size;}
 
         inline constexpr T & first() noexcept{return value;}
         inline constexpr T const& first() const noexcept{return value;}
@@ -45,34 +47,21 @@ namespace grob{
             return os << S.str();
         }
 
-        template <typename Serializer>
-        auto Serialize(Serializer && S)const{
-            return S.MakeDict(2,
-                [](size_t i){ return (!i ? "size":"value");},
-                [this,&S](size_t i){
-                    return ( !i? stools::Serialize(size_,S) : 
-                        stools::Serialize(value,S));
-                    }
-            );
-        }
 
-        template <typename ObjecType,typename DeSerializer>
-        void init_serialize(ObjecType && Object,DeSerializer && S){
-            stools::init_serialize(size_,S.GetProperty(Object,"size"),S);
-            stools::init_serialize(value,S.GetProperty(Object,"value"),S);
-        }
-        template <typename WriterStreamType>
-        void write(WriterStreamType && w){
-            stools::write(size_,w);
-            stools::write(value,w);
-        }
-        template <typename ReaderStreamType>
-        void init_read(ReaderStreamType && r){
-            stools::init_read(size_,r);
-            stools::init_read(value,r);
-        }
-        OBJECT_DESERIALIZATION_FUNCTION(ConstValueVector)
-        OBJECT_READ_FUNCTION(ConstValueVector)
+        SERIALIZATOR_FUNCTION(
+            PROPERTY_NAMES("size","value"),
+            PROPERTIES(_size,value)
+        )
+        WRITE_FUNCTION(_size,value)
+        DESERIALIZATOR_FUNCTION(
+            ConstValueVector,
+            PROPERTY_NAMES("size"),
+            PROPERTY_TYPES(_size)
+        )
+
+        READ_FUNCTION(ConstValueVector,
+            PROPERTY_TYPES(_size,value)
+        )
     };
 
     template <typename T>
@@ -120,63 +109,103 @@ namespace grob{
         }
 
 
-        template <typename Serializer>
-        auto Serialize(Serializer && S)const{
-            return S.MakeDict(2,
-                [](size_t i){ return (!i ? "size":"value");},
-                [this,&S](size_t i){
-                    return ( !i? stools::Serialize(size_,S) : 
-                        stools::Serialize(*value_ptr,S));
-                    }
-            );
-        }
-
-        template <typename ObjecType,typename DeSerializer>
-        void init_serialize(ObjecType && Object,DeSerializer && S){
-            init_serialize(size_,S.GetProperty(Object,"size"));
-            if(value_ptr != nullptr)
-                init_serialize(*value_ptr,S.GetProperty(Object,"value"));
-            else 
-                value_ptr = std::shared_ptr<T>(stools::DeSerialize<T>(Object,S));
-
-        }
-        template <typename WriterStreamType>
-        void write(WriterStreamType && w)const{
-            write(size_,w);
-            write(*value_ptr,w);
-        }
-        template <typename ReaderStreamType>
-        void init_read(ReaderStreamType && r){
-            init_read(size_,r);
-            init_read(*value_ptr,r);
-        }
-
-        template <typename ObjecType,typename DeSerializer>
-        static ConstSharedValueVector DeSerialize(ObjecType && Object,DeSerializer && S){
-            size_t _size;
-            S.GetPrimitive(S.GetProperty(Object,"size"),_size);
-            return ConstSharedValueVector (_size,stools::DeSerialize<T>(S.GetProperty(Object,"value"),S));
-        }
-        template <typename ReaderStreamType>
-        ConstSharedValueVector read(ReaderStreamType && r){
-            size_t _size;
-            init_read(_size,r);
-            return ConstSharedValueVector (_size,stools::read<T>(r));
-        }
+        SERIALIZATOR_FUNCTION(
+            PROPERTY_NAMES("size","value"),
+            PROPERTIES(size_,*value_ptr)
+        )
+        WRITE_FUNCTION(size_,*value_ptr)
             
 
     };
+
+    template <typename FuncType>
+    struct MappedContainer{
+        typedef decltype(std::declval<FuncType>()(std::declval<size_t>())) value_type;
+        FuncType F;
+        size_t _size;
+        MappedContainer(FuncType F,size_t _size):F(std::forward<FuncType>(F)),_size(_size){}
+        inline size_t size()const{
+            return _size;
+        }
+        
+        decltype(auto) operator [](size_t i){return F(i);}
+        decltype(auto) operator [](size_t i) const{return F(i);}
+        
+        /// @brief iterator class
+        typedef _const_iterator_template<MappedContainer,value_type> const_iterator;
+
+        /// @brief 
+        /// @return 
+        inline const_iterator begin()const noexcept{return const_iterator(*this,0);}
+        /// @brief 
+        /// @return 
+        inline const_iterator end()const noexcept{return const_iterator(*this,_size);}
+        /// @brief 
+        /// @return 
+        inline const_iterator cbegin()const noexcept{return begin();}
+        /// @brief 
+        /// @return 
+        inline const_iterator cend()const noexcept{return end();}
+
+    };
+    
+    /// @brief makes vector view of function, so that V[i] = F(i)
+    /// @param size size of container
+    /// @param F ravlue ref, [](size_t)->T
+    /// @return abstract object with [] operator
+    /// the value of F forwarded into container.
+    template <typename FuncType>
+    auto as_container(FuncType &&F,size_t size){
+        return MappedContainer<
+            typename std::decay<FuncType>::type
+        >(std::forward<FuncType>(F),size);
+    }
+
+    /// @brief makes vector view of function, so that V[i] = F(i)
+    /// @param size size of container
+    /// @param F is ref of [](size_t)->T
+    /// @return abstract object with [] operator
+    /// the reference to F is stored: ATTENTION possible bad ref
+    template <typename FuncType>
+    auto as_container(FuncType &F,size_t size){
+        return MappedContainer<FuncType &>(F,size);
+    }
+
+    template <typename Container>
+    auto as_func(Container && C){
+        return [_C = std::forward<Container>(C)](size_t i){
+            return i;
+        };
+    }
+    template <typename FuncType>
+    auto as_func(MappedContainer<FuncType> && C){
+        return std::move(C.F);
+    } 
+    template <typename FuncType>
+    auto & as_func(MappedContainer<FuncType> & C){
+        return C.F;
+    }
+    template <typename FuncType>
+    const auto & as_func(MappedContainer<FuncType> const& C){
+        return C.F;
+    } 
+
 
     struct LinearIndexer{
         size_t size_;
         size_t len_;
         
+        typedef size_t value_type;
         LinearIndexer(size_t size_ = 0,size_t len_ = 1):size_(size_),len_(len_){}
         size_t inline constexpr  operator [](size_t i)const noexcept{return i*len_;}
         size_t inline constexpr  size()const noexcept{return size_;}
 
-        inline constexpr size_t first() noexcept{return 0;}
-        inline constexpr size_t back() noexcept{return len_*(size_-1);}
+        inline constexpr size_t first()const noexcept{return 0;}
+        inline constexpr size_t back()const noexcept{return len_*(size_-1);}
+
+        constexpr inline size_t find(size_t i) const noexcept{
+            return i/len_;
+        }
     };
 
     template <typename Container>
@@ -200,7 +229,10 @@ namespace grob{
         constexpr static bool value = true;
     };
 
-
+    /// @brief makes vector from function, so that V[i] = F(i)
+    /// @param size size of container
+    /// @param F [](size_t)->T
+    /// @return std::vector<T>
     template <typename FuncType>
     constexpr auto make_vector(size_t size,FuncType && F){
         std::vector<typename std::decay<decltype(F(0))>::type > V;
@@ -212,6 +244,16 @@ namespace grob{
     } 
 
     namespace _index_impl{
+
+        template <typename IntContainer>
+        inline size_t find_index(IntContainer const& cnt,size_t i){
+            return __find_int_index_sorted_with_guess(cnt,i);
+        }
+
+        inline size_t find_index(LinearIndexer const& cnt,size_t i){
+            return cnt.find(i);
+        }
+
         template <typename ContainerOfContainer,typename Iterator>
         inline void _init_index_count(const ContainerOfContainer & _CC,Iterator it) noexcept{
             *it = 0;
@@ -236,6 +278,7 @@ namespace grob{
 
             template <typename ContainerOfContainer_in>
             constexpr static void Update(const ContainerOfContainer_in & _CC,type & Indexes)noexcept{
+                Indexes.resize(_CC.size()+1);
                 _index_impl::_init_index_count(_CC,Indexes.begin());
             }
         };
@@ -247,6 +290,10 @@ namespace grob{
             template <typename ContainerOfContainer_in>
             static type Create(const ContainerOfContainer_in & V) noexcept{
                 return type(V.size()+1, (V.size() ? V[0].size() : 0));
+            }
+
+            static size_t Find(LinearIndexer const & _cnt,size_t i){
+                return find_index(_cnt,i);
             }
 
             template <typename ContainerOfContainer_in>
@@ -270,23 +317,7 @@ namespace grob{
                 Indexes = Create(V);
             }
         };
-        template <typename ContainerType,typename...VArgs>
-        struct _index_container<std::vector<ContainerType,VArgs...>>{
-            typedef std::vector<size_t,VArgs...> type;
-            constexpr static bool is_noexcept = false;
-
-            template <typename ContainerOfContainer_in>
-            constexpr static type Create(const ContainerOfContainer_in & _CC){
-                type Vret(_CC.size()+1);
-                _index_impl::_init_index_count(_CC,Vret.begin());
-                return Vret;
-            }
-            template <typename ContainerOfContainer_in>
-            constexpr static void Update(const ContainerOfContainer_in  & _CC,type & Indexes)noexcept{
-                _index_impl::_init_index_count(_CC,Indexes.begin());
-            }
-        };
-
+        
         template <typename ContainerType,size_t _size>
         struct _index_container<std::array<ContainerType,_size>>{
             typedef std::array<size_t,_size> type;
@@ -310,8 +341,8 @@ namespace grob{
 
         template <typename Containertype>
         struct mapper{
-            template <typename LambdaType>
-            static auto map(Containertype &&cnt,LambdaType && F){
+            template <typename Container_t,typename LambdaType>
+            static auto map(Container_t &&cnt,LambdaType && F){
                 std::vector<typename std::decay<decltype(F(cnt[std::declval<size_t>()]))>::type> V;
                 V.reserve(cnt.size());
                 for(size_t i=0;i<V.size();++i){
@@ -389,6 +420,7 @@ namespace grob{
             std::forward<Containertype>(C),
             std::forward<LambdaType>(F));
     }
+
     
 
 };

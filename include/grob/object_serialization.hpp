@@ -22,17 +22,28 @@
             return Ret;\
         }
 
-#define INHERIT_SERIALIZATOR(Base,Derived) \
+#define INHERIT_SERIALIZATOR(Base) \
+    template <typename Serializer>\
+    inline auto Serialize(Serializer && S)const{\
+        return stools::Serialize(static_cast<Base const &>(*this),S);\
+    }\
+    template <typename Writer>\
+    inline void write(Writer && w){\
+        stools::write(static_cast<Base const &>(*this),w);\
+    }    
+#define INHERIT_DESERIALIZATOR(Base,Derived) \
     template <typename Object,typename DeSerializer>\
     static Derived DeSerialize(Object const& Obj,DeSerializer && DS){\
         return (Base::DeSerialize(Obj,std::forward<DeSerializer>(DS)));\
-    }
-
-#define INHERIT_READ(Base,Derived) \
+    }\
     template <typename Reader>\
     static Derived read(Reader && r){\
         return (Base::read(r));\
     }
+
+
+
+
 
 /*!
     Object Serialization:
@@ -67,13 +78,13 @@ namespace stools{
         void init_read(T & x, Reader && w);
 
     template <typename T,typename Reader>
-        void read(Reader && r);
+        auto read(Reader && r);
 
     namespace _serialize_impl{
         struct not_serializable{};
 
         template <class C,typename Serializer>
-        auto serializable_check(C && c,Serializer && S)->decltype(c.Serialize(S));
+        auto serializable_check(C const& c,Serializer && S)->decltype(c.Serialize(S));
 
         not_serializable serializable_check(...);
 
@@ -88,14 +99,14 @@ namespace stools{
         template <bool _is_srlz>
         struct _condition_serialize{
             template <class C,typename Serializer>
-            static auto function(C && c,Serializer && S){
+            static auto function(C const& c,Serializer && S){
                 return S.MakePrimitive(c);
             }
         };
         template <>
         struct _condition_serialize<true>{
             template <class C,typename Serializer>
-            static auto function(C && c,Serializer && S){
+            static auto function(C const& c,Serializer && S){
                 return c.Serialize(S);
             }        
         };
@@ -163,8 +174,9 @@ namespace stools{
     
     template <typename T,typename Serializer>
     auto Serialize(T const& x,Serializer && S){
-        return _serialize_impl::_condition_serialize<_serialize_impl::is_serializable<T,Serializer>::value>
-                ::function(x,S);
+        return _serialize_impl::_condition_serialize<
+                    _serialize_impl::is_serializable<T,Serializer>::value
+                >::function(x,S);
     }
 
     template <typename...Args,typename Serializer>
@@ -475,5 +487,112 @@ namespace stools{
     };
 
 };
+
+namespace st_detail{
+    template <typename Arg,typename ...Args>
+    struct first_type{
+        typedef Arg type;
+    };
+
+    template <typename Translatora_t,typename ...Args>
+    inline auto make_array(Translatora_t && tr,Args const&...args){
+        return std::array<
+                    decltype(tr(std::declval<typename first_type<Args...>::type>())),
+                    templdefs::arg_num<Args...>::value
+                > {tr(args)...};
+    }
+    template <typename Lambda_t,typename Arg,typename...Args>
+    inline void apply(Lambda_t && Lambda,Arg && arg,Args && ...args){
+        Lambda(arg);
+        apply(Lambda,args...);
+    }
+    template <typename Lambda_t>
+    inline void apply(Lambda_t && Lambda){}
+
+    template <typename IndexType>
+    struct meta_deserialization_impl;
+
+    template <typename IndexType>
+    struct meta_read_impl;
+
+    template <size_t...I>
+    struct meta_deserialization_impl<std::index_sequence<I...>>{
+        template <typename TupleType,typename ConstructorLambda,typename Object,typename DeDerializer,typename NameArray_t >
+        static auto construct(ConstructorLambda && Constructor,Object && Obj,DeDerializer && DS,NameArray_t const & names){
+            return Constructor(
+                stools::DeSerialize<std::tuple_element<I, TupleType>::type>
+                    (DS.GetProperty(Obj,names[I]),DS)...
+                );
+        }
+    };
+    template <size_t...I>
+    struct meta_read_impl<std::index_sequence<I...>>{
+        template <typename TupleType,typename ConstructorLambda,typename  Reader>
+        static auto construct(ConstructorLambda && Constructor,Reader && r){
+            return Constructor(
+                stools::read<std::tuple_element<I, TupleType>::type>(r)...
+                );
+        }
+    };
+    template <typename TupleType,typename ConstructorLambda,typename Object,typename DeDerializer,typename NameArray_t>
+    auto meta_deserialization(ConstructorLambda && Constructor,Object && Obj,DeDerializer && DS,NameArray_t const & names){
+        return meta_deserialization_impl<
+                    std::make_index_sequence<
+                        std::tuple_size<typename std::decay<TupleType>::type>::value
+                    >
+                >::construct(std::forward<ConstructorLambda>(Constructor),Obj,DS,names);
+
+    }
+    template <typename TupleType,typename ConstructorLambda,typename  Reader>
+    auto meta_read(ConstructorLambda && Constructor,Reader && r){
+        return meta_read_impl<
+                    std::make_index_sequence<
+                        std::tuple_size<typename std::decay<TupleType>::type>::value
+                    >
+                >::construct(std::forward<ConstructorLambda>(Constructor),r);
+    }
+
+
+};
+
+
+//#define ARG_NAMES(...) std::array<char *, std::tuple_size<decltype(std::make_tuple(#__VA_ARGS__))>> {__VA_ARGS__}
+
+#define SERIALIZATOR_FUNCTION(NAMES_ARRAY,PROPERTIES_ARRAY)\
+    template <typename Serializer>\
+    auto Serialize(Serializer && S)const{\
+        static const auto names = NAMES_ARRAY;\
+        return S.MakeDict(names,PROPERTIES_ARRAY);\
+    }
+
+#define WRITE_FUNCTION(...)\
+    template <typename Writer>\
+    auto write(Writer && W)const{\
+        st_detail::apply([&W](auto const & value){W.write(value);},__VA_ARGS__);\
+    }
+
+#define DESERIALIZATOR_FUNCTION(CONSTRUCTOR,NAMES_ARRAY,TYPES_ARRAY)\
+    template <typename Object,typename Serializer>\
+    static auto DeSerialize(Object && Obj,Serializer && S){\
+        return st_detail::meta_deserialization<TYPES_ARRAY>([&](auto &&...args)\
+            {\
+                return CONSTRUCTOR(std::forward<decltype(args)...>(args...));\
+            },Obj,S,NAMES_ARRAY\
+        );\
+    }
+
+#define READ_FUNCTION(CONSTRUCTOR,TYPES_ARRAY)\
+    template <typename Reade>\
+    static auto read(Reade && r){\
+        return st_detail::meta_read<TYPES_ARRAY>([&](auto &&...args)\
+            {\
+                return CONSTRUCTOR(std::forward<decltype(args)...>(args...));\
+            },r\
+        );\
+    }
+
+#define PROPERTY_NAMES(...) std::array<std::string,ARG_COUNT(__VA_ARGS__)> {__VA_ARGS__}
+#define PROPERTIES(...) st_detail::make_array([&S](const auto & value){return stools::Serialize(value,S);},__VA_ARGS__)
+#define PROPERTY_TYPES(...) decltype(std::make_tuple(__VA_ARGS__))
 
 #endif

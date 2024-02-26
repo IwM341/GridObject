@@ -115,6 +115,28 @@ struct tuple_reducer<1>{
     }
 };
 
+template <bool cond,size_t true_int,size_t false_int>
+struct int_condition{
+	constexpr static size_t value = false_int;
+};
+
+template <size_t true_int,size_t false_int>
+struct int_condition<true,true_int,false_int>{
+	constexpr static size_t value = true_int;
+};
+
+template <typename...Args>
+struct arg_num;
+
+template <typename Arg,typename...Args>
+struct arg_num<Arg,Args...>{
+    constexpr static size_t value = 1 + arg_num<Args...>::value;
+};
+template <>
+struct arg_num<>{
+    constexpr static size_t value = 0;
+};
+
 template <typename Tuple>
 decltype(auto) tuple_reduce(Tuple && X){
     return tuple_reducer<std::tuple_size<typename std::decay<Tuple>::type>::value>::reduce(std::forward<Tuple>(X));
@@ -129,7 +151,8 @@ namespace detail{
     struct is_tuple<std::tuple<Args...>>{
         constexpr static bool value = true;
     };
-};  
+};
+#define ARG_COUNT(...) std::tuple_size<decltype(std::make_tuple(__VA_ARGS__))>::value 
 /*
 template <typename Ttypename std::enable_if<
                         detail::is_tuple<typename std::decay<T>::type>::value,bool

@@ -31,7 +31,7 @@ namespace debugdefs{
 
     template<typename T, typename U>
     std::string to_debug_string(const std::pair<T,U> &x){
-        return to_debug_string(x.first)+"\t"+to_debug_string(x.second);
+        return "{" + to_debug_string(x.first)+", "+to_debug_string(x.second) + "}";
     }
     
     template <size_t number>
@@ -88,6 +88,8 @@ namespace debugdefs{
 #define TEST(equation,expectation) (debugdefs::__test_impl__(SVAR(equation),\
                                                 debugdefs::to_debug_string(equation), \
                                                debugdefs::to_debug_string(expectation )))
+#define _T(...) std::make_tuple(__VA_ARGS__)
+#define _P(...) std::make_pair(__VA_ARGS__)
 
 template <typename T>
 std::string TypeString(){

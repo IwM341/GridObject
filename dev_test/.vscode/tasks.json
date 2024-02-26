@@ -8,9 +8,6 @@
                 "-fdiagnostics-color=always",
                 "-ID:/Soft/cpp_packages/boost_1_81_0/build_mingw64/include/boost-1_81",
                 "-g",
-                "-std=c++23",
-                "-march=native",
-                "-mavx",
                 "${file}",
                 "-Wall",
                 "-o",
@@ -22,30 +19,12 @@
             "problemMatcher": [
                 "$gcc"
             ],
-            "group": "build",
-            "detail": "Задача создана хуядчиком."
-        },
-        {
-            "type": "cppbuild",
-            "label": "C/C++: cl.exe сборка активного файла",
-            "command": "cl.exe",
-            "args": [
-                "/Zi",
-                "/EHsc",
-                "/nologo",
-                "/Fe${fileDirname}\\${fileBasenameNoExtension}.exe",
-                "${file}"
-            ],
-            "options": {
-                "cwd": "${fileDirname}"
+            "group": {
+                "kind": "build",
+                "isDefault": true
             },
-            "problemMatcher": [
-                "$msCompile"
-            ],
-            "group": "build",
             "detail": "Задача создана отладчиком."
-        },
-
+        }
     ],
     "version": "2.0.0"
 }

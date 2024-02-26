@@ -3,7 +3,7 @@
 #include <string>
 #include <iomanip>
 #include "object_serialization.hpp"
-
+#include <iostream>
 //#include "../tests/debug_defs.hpp"
 
 namespace stools{
@@ -47,7 +47,7 @@ namespace stools{
         std::ostream * stream;
         size_t deep = 0;
         SerializatorJson(std::ostream & stream):stream(&stream),deep(0){}
-        SerializatorJson(){}
+        SerializatorJson():stream(&std::cout){}
         void setStream(std::ostream & new_stream){stream = &new_stream;deep = 0;}
         
         struct Object{};
@@ -106,11 +106,30 @@ namespace stools{
             p.put("",x);
             return p;
         }
+
         template <typename KeyFunctype,typename ValueFunctype>
         static ptree_type MakeDict(size_t property_num,KeyFunctype &&keys,ValueFunctype && values){
             ptree_type p;
             for(size_t i=0;i<property_num;++i){
                 p.add_child(keys(i),values(i));
+            }
+            return p;
+        }
+
+        template <typename ContainerOfPairs>
+        static ptree_type MakeDict(ContainerOfPairs && key_value_list){
+            ptree_type p;
+            for(size_t i=0;i<key_value_list.size();++i){
+                p.add_child(key_value_list[i].first,std::move(key_value_list[i].second));
+            }
+            return p;
+        }
+
+        template <typename KeyArrayType,typename ValueArrayType>
+        static ptree_type MakeDict(KeyArrayType const & keys,ValueArrayType && values){
+            ptree_type p;
+            for(size_t i=0;i<keys.size();++i){
+                p.add_child(keys[i],std::move(values[i]));
             }
             return p;
         }
@@ -124,6 +143,14 @@ namespace stools{
             return p;
         }
 
+        template <typename ValuesArrayType>
+        static ptree_type MakeArray(ValuesArrayType && values){
+            ptree_type p;
+            for(size_t i=0;i<values.size();++i){
+                p.push_back(std::make_pair("",values[i]));
+            }
+            return p;
+        }
 
         template <typename T>
         static void GetPrimitive(ptree_type const& p, T & x){
@@ -139,10 +166,19 @@ namespace stools{
         static auto Begin(_ptree_type &&p){
             return p.begin();
         }
+        
         template <typename _ptree_type>
         static auto End(_ptree_type &&p){
             return p.end();
         }
+
+        template <typename _ptree_type>
+        static size_t Size(_ptree_type && p){
+            size_t i=0;
+            for(auto it = p.begin();it != p.end();++it,++i);
+            return i;
+        } 
+
         template <typename iter_type>
         auto GetKey(iter_type &&  it){
             return it->first;

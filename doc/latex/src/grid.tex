@@ -1,0 +1,24 @@
+Одномерная сетка --- это структура данных, наследуемая от концепта container. container --- любой класс, содержащий методы
+\begin{lstlisting}[language = c++]
+	size_type container::size();
+	ret_type1 container::operator [] (size_t );
+	ret_type2 container::front();
+	ret_type2 container::back();
+	
+	iterator_type container::begin();
+	iterator_type container::end();
+\end{lstlisting}
+
+Для превращения контейнера в сеть, определяются служебные методы, позволяющие определить, находится ли элемент x в этом контейнере, и позволяющие найти индекс этого элемента.
+
+
+\begin{lstlisting}[language = c++]
+	struct helper_example{
+		template <typename Container, typename T>
+		static bool contain_impl (Container && cnt, T && x);
+		
+		template <typename Container, typename T>
+		static size_t pos_impl (Container && cnt, T && x);
+	};
+\end{lstlisting}
+
