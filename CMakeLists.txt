@@ -1,17 +1,17 @@
 ###################################################################################################
 ##
-##      Информация о проекте
+##      project info 
 ##
 ###################################################################################################
 
 cmake_minimum_required(VERSION 3.14)
-project(GridObjects VERSION 1.0 LANGUAGES CXX)
+project(GridObjects VERSION 1.0.0 LANGUAGES CXX)
 
 get_directory_property(IS_SUBPROJECT PARENT_DIRECTORY)
 
 ###################################################################################################
 ##
-##      Опции проекта
+##      project options
 ##
 ###################################################################################################
 
@@ -25,48 +25,15 @@ if (IS_SUBPROJECT AND NOT DEFINED GROB_DOC)
     set(GROB_DOC OFF)
 endif()
 
-option(GROB_TESTING "enable testing" ON)
+option(GROB_TESTING "enable testing" OFF)
 option(GROB_COVERAGE "coverage" OFF)
-option(GROB_DOC "enable doc" ON)
+option(GROB_DOC "enable doc" OFF)
+
+
 
 ###################################################################################################
 ##
-##      Опции компиляции
-##
-###################################################################################################
-
-if((CMAKE_CXX_COMPILER_ID MATCHES "GNU") OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang"))
-    add_compile_options(
-        -Werror
-
-        -Wall
-        -Wextra
-        -Wpedantic
-
-        -Wcast-align
-        -Wcast-qual
-        -Wconversion
-        -Wctor-dtor-privacy
-        -Wenum-compare
-        -Wfloat-equal
-        -Wnon-virtual-dtor
-        -Wold-style-cast
-        -Woverloaded-virtual
-        -Wredundant-decls
-        -Wsign-conversion
-        -Wsign-promo
-    )
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
-    add_compile_options(/W4 /WX)
-endif()
-
-if(NOT CMAKE_CXX_EXTENSIONS)
-    set(CMAKE_CXX_EXTENSIONS OFF)
-endif()
-
-###################################################################################################
-##
-##      Заголовочная библиотека
+##      headers lib
 ##
 ###################################################################################################
 
@@ -81,7 +48,7 @@ add_library(Grob::grob ALIAS grob_headers)
 
 ###################################################################################################
 ##
-##      Установка
+##      install
 ##
 ###################################################################################################
 
@@ -100,7 +67,7 @@ install(FILES "${PROJECT_BINARY_DIR}/GrobConfigVersion.cmake" DESTINATION share/
 
 ###################################################################################################
 ##
-##      Тесты
+##      tests
 ##
 ###################################################################################################
 
@@ -112,7 +79,7 @@ endif()
 
 ###################################################################################################
 ##
-##      Документация
+##      documentation
 ##
 ###################################################################################################
 
