@@ -257,8 +257,7 @@ namespace grob{
         template <typename Ret_t,size_t offset,typename Tuple_type,size_t...I>
         Ret_t make_type_from_index_tuple(std::index_sequence<I...>,Tuple_type && _Tp){
             return Ret_t(
-                std::forward<decltype(std::get<offset + I>(_Tp))>
-                (std::get<offset + I>(_Tp))...
+                std::get<offset + I>(std::forward <Tuple_type>( _Tp))...
             );
         }
         template <size_t I,typename PointType,typename ArgTupleRefType>

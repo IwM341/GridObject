@@ -26,10 +26,19 @@ namespace grob{
         inline auto interpol_coeff (U const &x) const noexcept{
             return (right - x)/(right-left);
         }
-    
+        
+        /// @brief liner combination of left, right
+        /// @return a*left+b*right
         template <typename U>
         inline auto reduction (U const &a,U const &b) const noexcept{
             return a*left+b*right;
+        }
+        
+        /// @brief liner combination of left, right
+        /// @return (1-a)*left+a*right
+        template <typename U>
+        inline auto reduction(U const& a) const noexcept {
+            return (1-a) * left + a * right;
         }
 
         inline constexpr T volume()const noexcept{return right-left;}

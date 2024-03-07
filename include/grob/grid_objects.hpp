@@ -35,8 +35,13 @@ struct GridObject{
     /// @brief maps Values by grid multiindex 
     /// @param Index 
     /// @return
-    template <typename MultiIndex_t>
+    template <typename MultiIndex_t = std::decay_t<GridType>::MultiIndexType>
     inline decltype(auto) operator [](const MultiIndex_t &Index) noexcept(noexcept(Values[0])){
+        return Values[Grid.LinearIndex(Index)];
+    }
+    /// @brief
+    template <typename MultiIndex_t = std::decay_t<GridType>::MultiIndexType>
+    inline decltype(auto) operator [](const MultiIndex_t& Index) const {
         return Values[Grid.LinearIndex(Index)];
     }
     
@@ -87,11 +92,7 @@ struct GridObject{
     }
 
 
-    /// @brief
-    template <typename MultiIndex_t>  
-    inline decltype(auto) operator [](const MultiIndex_t &Index) const noexcept(noexcept(Values[0])){
-        return Values[Grid.LinearIndex(Index)];
-    }
+
 
     /// @brief 
     template <typename Serializer>
@@ -160,10 +161,10 @@ make_grid_object(GridType&& Grid, VectorType&& Values)
         );
 }
 template <typename GridType, typename VectorType>
-GridObject<GridType &, VectorType &>
-make_grid_object_ref(GridType& Grid, VectorType& Values)
+GridObject<GridType, VectorType>
+make_grid_object_ref(GridType&& Grid, VectorType&& Values)
 {
-    return GridObject<GridType&, VectorType&>(
+    return GridObject<GridType, VectorType>(
             Grid,
             Values
         );
@@ -208,7 +209,12 @@ struct GridFunction:public GridObject<GridType,ContainerType>{
     template <typename NewInterpolator = Interpolator,typename MultiIndex_t>
     auto inner_slice(const MultiIndex_t & MI){
         return GridFunction<NewInterpolator,decltype(GOBase::Grid.inner(MI)) &,decltype(make_slice(GOBase::Values,0,0))>(
-            GOBase::Grid.inner(MI),make_slice(GOBase::Values,GOBase::Grid.LinearIndex(MI),GOBase::Grid.inner(MI).size())
+            GOBase::Grid.inner(MI),
+            make_slice(
+                GOBase::Values,
+                GOBase::Grid.LinearPartialIndex(MI),
+                GOBase::Grid.inner(MI).size()
+            )
         );
     }
 
@@ -307,7 +313,12 @@ struct Histogramm:public GridObject<GridType,ContainerType>{
     template <typename MultiIndex_t>
     auto inner_slice(const MultiIndex_t & MI){
         return Histogramm<decltype(GOBase::Grid.inner(MI)) &,decltype(make_slice(GOBase::Values,0,0))>(
-            this->Grid.inner(MI),make_slice(GOBase::Values,GOBase::Grid.LinearIndex(MI),GOBase::Grid.inner(MI).size())
+            this->Grid.inner(MI),
+            make_slice(
+                GOBase::Values,
+                GOBase::Grid.LinearPartialIndex(MI),
+                GOBase::Grid.inner(MI).size()
+            )
         );
     }
 

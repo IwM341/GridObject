@@ -31,6 +31,13 @@ namespace grob{
         inline constexpr MultiIndex(HeadIndex _i,TailIndex..._m) noexcept:i(_i),m(_m...) {}
         
         inline constexpr MultiIndex(HeadIndex _i,MultiIndex<TailIndex...> m) noexcept:i(_i),m(m) {}
+        
+        template <typename HeadIndex1, typename...TailIndex1>
+        inline constexpr MultiIndex(const MultiIndex<HeadIndex1, TailIndex1...> & other):
+        i(other.i),m(other.m){
+            static_assert(sizeof...(TailIndex1) == sizeof...(TailIndex),
+                "error conversion multiindex, should be same dimention"); 
+        }
 
         inline constexpr MultiIndex(){}
 
@@ -277,17 +284,20 @@ namespace grob{
         }
 
         /// @brief gives linear position of Multiindex(i0,indexes...)
-        template <typename...TailIndex>
-        inline size_t LinearIndex(MultiIndex<typename MultiIndexType::Head,TailIndex...> const & mi)const noexcept
+        //template <typename...TailIndex>
+        inline size_t LinearIndex(
+            //MultiIndex<typename MultiIndexType::Head,TailIndex...> 
+            MultiIndexType const & mi)const noexcept
         {
             size_t i = Grid.LinearIndex(mi.i);
             return Indexes[i] + InnerGrids[i].LinearIndex(mi.m);
         }
-        /// @brief gives linear position of Multiindex(i0,indexes...)
+
+        ///@brief gives linear position of Multiindex(i0,indexes...)
         template <typename HeadIndex>
-        inline size_t LinearIndex(HeadIndex const & mi)const noexcept
+        inline size_t LinearPartialIndex(HeadIndex const & mi)const noexcept
         {
-            return Indexes[Grid.LinearIndex(mi)];
+            return Indexes[Grid.LinearPartialIndex(mi)];
         }
 
         /// @brief return MultiIndex  corresponding to linear index (works with time O(log2(N)^Dim) )
@@ -355,10 +365,10 @@ namespace grob{
             auto i =  Grid.pos(x);
             return MultiIndexType(i,InnerGrids[Grid.LinearIndex(i)].pos(Y...));
         }
-        template <typename T>
-        inline  auto pos(T const & x) const noexcept{
-            return Grid.pos(x);
-        }
+        //template <typename T>
+        //inline  auto pos(T const & x) const noexcept{
+        //    return Grid.pos(x);
+        //}
 
         /// @brief MultiIndex matching tuple(args...) 
         template <size_t tuple_index,typename...T>
@@ -372,15 +382,17 @@ namespace grob{
 
         /// @brief gives multidim point or rectangle 
         /// @return 
-        template <typename IndexHead,typename...IndexTail> 
-        inline auto  operator [] (const MultiIndex<IndexHead,IndexTail...> &mi)const noexcept {
+        //template <typename IndexHead,typename...IndexTail> 
+        inline auto  operator [] (
+                const MultiIndexType/*MultiIndex<IndexHead, IndexTail...>*/& mi
+            )const noexcept {
             return make_point_ht(Grid[mi.i],InnerGrids[Grid.LinearIndex(mi.i)][mi.m]);
         } 
         
-        template <typename IndexHead> 
-        inline auto  operator [] (const MultiIndex<IndexHead> & i)const noexcept {
-            return Grid[i.i];
-        }
+        //template <typename IndexHead> 
+        //inline auto  operator [] (const MultiIndex<IndexHead> & i)const noexcept {
+        //    return Grid[i.i];
+        //}
         
 
         /// @brief grid of first dim 

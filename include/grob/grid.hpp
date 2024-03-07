@@ -4,6 +4,7 @@
 #include <vector>
 #include <array>
 #include <sstream>
+#include <algorithm>
 #include "rectangle.hpp"
 #include "serialization.hpp"
 #include "templates.hpp"
@@ -184,6 +185,7 @@ namespace grob{
 
         typedef Container impl_container;
         using Container::Container;
+        using MultiIndexType = size_t;
         typedef typename std::decay<decltype(std::declval<Container>()[0])>::type value_type;
         /// @brief finds placement of x coord
         /// @param x 
@@ -221,6 +223,10 @@ namespace grob{
         template <typename IndexType>
         inline constexpr size_t LinearIndex(IndexType const & i)const noexcept{
             return Indexer::LinearIndex(container(),i);
+        }
+        template <typename IndexType>
+        inline constexpr size_t LinearPartialIndex(IndexType const& i)const noexcept {
+            return Indexer::LinearIndex(container(), i);
         }
         
         template <typename IndexType>
@@ -552,7 +558,8 @@ namespace grob{
     struct range_helper{
         template <typename int_type>
         static inline constexpr size_t pos_impl(Range<int_type> _self,int_type x)noexcept{
-            return static_cast<size_t>( (x-_self.start)/_self.step);
+            int i = static_cast<int>((x - _self.start) / _self.step);
+            return static_cast<size_t>(std::clamp(i, 0, (int)_self.size() - 1));
         }
         template <typename int_type>
         static inline constexpr bool contain_impl(Range<int_type> _self,int_type x)noexcept{
@@ -685,12 +692,8 @@ namespace grob{
     struct uniform_grid_helper{
         template <typename T,typename U>
         static constexpr size_t pos_impl(UniformContainer<T> const & _self,U const & x)noexcept{
-            if(x <= _self.a)
-                return 0;
-            else if(x >= _self.b)
-                return _self._size-2;
-            else
-                return static_cast<size_t>( (x-_self.a)*_self._h_1);
+            int i = static_cast<int>((x - _self.a) * _self._h_1);
+            return std::clamp(i, (int)0, (int)_self.size() - 2);
         }
         template <typename T,typename U>
         static inline constexpr bool contain_impl(UniformContainer<T> const & _self,U const & x)noexcept{

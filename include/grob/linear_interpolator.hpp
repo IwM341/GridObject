@@ -305,7 +305,7 @@ namespace grob{
             auto MetaContainerFunction = [&](auto const & Index0){
                 return InterpolatorY::interpolate(
                     grid.inner(Index0),
-                    make_slice(values,grid.LinearIndex(Index0), grid.inner(Index0).size()),
+                    make_slice(values, grid.LinearIndex({ Index0,0 }), grid.inner(Index0).size()),
                     point.tail()
                 );
             };
