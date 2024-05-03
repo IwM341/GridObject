@@ -67,6 +67,8 @@ namespace grob{
              return (a._index != b._index || a._cnt != b._cnt); };
     };
 
+    
+
     template <typename _iterator>
     struct _iterator_base{
         protected:
@@ -138,6 +140,13 @@ namespace grob{
             return i1;
     }
 
+    namespace _detail {
+        template <typename T>
+        inline constexpr size_t size_t_cast(T value, size_t _limit){
+            return value <= _limit ? (value >= 0 ? static_cast<size_t>(value) : 0) : _limit;
+        }
+    };
+
     template <typename Container,typename T,typename Comparator = std::less<T>>
     inline size_t __find_index_sorted_with_guess(const Container &X,T const&x, 
                                         Comparator && cmp = std::less<T>{}){
@@ -145,10 +154,7 @@ namespace grob{
         if(N <= 1 || cmp(x,X[0])){
             return 0;
         }
-        size_t i_guess =static_cast<size_t>( (N*(x-X[0]))/(X[N-1]-X[0]) );
-        if(i_guess >= N-1){
-            i_guess = N-2;
-        }
+        size_t i_guess = _detail::size_t_cast((N * (x - X[0])) / (X[N - 1] - X[0]), N - 2);
         if(cmp(x,X[i_guess])){
             size_t di = 1;
             size_t i1 = i_guess-di;

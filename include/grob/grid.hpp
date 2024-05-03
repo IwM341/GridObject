@@ -489,7 +489,7 @@ namespace grob{
     struct rangelight_helper{
         template <typename int_type>
         static inline constexpr size_t pos_impl(RangeLight<int_type> const &_self,int_type x)noexcept{
-            return static_cast<size_t>(x);
+            return _detail::size_t_cast(x,_self.size()-1);
         }
         template <typename int_type>
         static inline constexpr bool contain_impl(RangeLight<int_type> _self,int_type x)noexcept{
@@ -558,8 +558,7 @@ namespace grob{
     struct range_helper{
         template <typename int_type>
         static inline constexpr size_t pos_impl(Range<int_type> _self,int_type x)noexcept{
-            int i = static_cast<int>((x - _self.start) / _self.step);
-            return static_cast<size_t>(std::clamp(i, 0, (int)_self.size() - 1));
+            return _detail::size_t_cast( (x - _self.start) / _self.step,_self.size() - 1);
         }
         template <typename int_type>
         static inline constexpr bool contain_impl(Range<int_type> _self,int_type x)noexcept{
@@ -692,8 +691,7 @@ namespace grob{
     struct uniform_grid_helper{
         template <typename T,typename U>
         static constexpr size_t pos_impl(UniformContainer<T> const & _self,U const & x)noexcept{
-            int i = static_cast<int>((x - _self.a) * _self._h_1);
-            return std::clamp(i, (int)0, (int)_self.size() - 2);
+            return _detail::size_t_cast((x - _self.a) * _self._h_1, _self.size() - 2);
         }
         template <typename T,typename U>
         static inline constexpr bool contain_impl(UniformContainer<T> const & _self,U const & x)noexcept{

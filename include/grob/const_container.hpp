@@ -356,8 +356,7 @@ namespace grob{
         struct mapper<std::vector<T,Args...>>{
             template <typename Containertype,typename LambdaType>
             static auto map(Containertype && cnt,LambdaType && F){
-                std::vector<typename std::decay<decltype(F(cnt[std::declval<size_t>()]))>::type,
-                    Args...> V;
+                std::vector<typename std::decay<decltype(F(cnt[std::declval<size_t>()]))>::type> V;
                 V.reserve(cnt.size());
                 for(size_t i=0;i<V.size();++i){
                     V.push_back(F(cnt[i]));

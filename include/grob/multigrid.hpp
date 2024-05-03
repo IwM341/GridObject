@@ -362,6 +362,8 @@ namespace grob{
         /// @brief MultiIndex matching args... 
         template <typename T,typename...Other>
         inline auto pos(T const & x,Other const&...Y) const noexcept{
+            static_assert(1 + sizeof...(Y) == Dim,
+                "Multigrid pos dimentional error");
             auto i =  Grid.pos(x);
             return MultiIndexType(i,InnerGrids[Grid.LinearIndex(i)].pos(Y...));
         }
@@ -373,10 +375,12 @@ namespace grob{
         /// @brief MultiIndex matching tuple(args...) 
         template <size_t tuple_index,typename...T>
         inline  auto pos_tuple(std::tuple<T...> const & X) const noexcept{
-            static_assert(sizeof...(T) != Dim,"in pos_tuple tuple size doesn't match Dim");
+            static_assert(
+                sizeof...(T) == Dim,
+                "in pos_tuple tuple size doesn't match Dim");
             auto i = Grid.template pos_tuple<tuple_index>(X);
             return MultiIndexType(i,
-                InnerGrids[Grid.LinearInde(i)].template pos_tuple<tuple_index+1>(X)
+                InnerGrids[Grid.LinearIndex(i)].template pos_tuple<tuple_index+1>(X)
             );
         }       
 

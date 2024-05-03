@@ -322,6 +322,7 @@ struct Histogramm:public GridObject<GridType,ContainerType>{
         );
     }
 
+
     /// @brief puts value into bin, containing (arg0,...args)
     /// @return true in case of sucsess, false if Grid not contains point 
     template <typename T,typename Arg0,typename...Args>
@@ -331,12 +332,17 @@ struct Histogramm:public GridObject<GridType,ContainerType>{
 
     template <typename T,typename Arg>
     inline bool put(T const &value,Arg const& arg) noexcept{
-        static_assert(std::tuple_size<std::tuple<Arg>>::value == GOBase::Dim,"numbper of args mismatches dimension");
+        static_assert(
+            std::tuple_size<std::tuple<Arg>>::value == GOBase::Dim,
+            "numbper of args mismatches dimension");
         auto bMI = this->Grid.spos(arg);
         if(!std::get<0>(bMI))
             return false;
         else{
-            VS.put_value(this->Grid.LinearIndex(std::get<1>(bMI)),value,GOBase::Values);
+            VS.put_value(
+                this->Grid.LinearIndex(std::get<1>(bMI)),
+                value,GOBase::Values
+            );
             return true;
         }
     }
@@ -348,11 +354,36 @@ struct Histogramm:public GridObject<GridType,ContainerType>{
             return false;
         }
         else{
-            VS.put_value(this->Grid.LinearIndex(std::get<1>(bMI)),value,GOBase::Values);
+            VS.put_value(
+                this->Grid.LinearIndex(std::get<1>(bMI)),
+                value,GOBase::Values
+            );
             return true;
         }
     }
 
+    template <typename T, typename...Args>
+    inline void put_force_point(T const& value, Point<Args...> const& X) {
+        auto MI = this->Grid.template pos_tuple<0>(X.as_tuple());
+        VS.put_value(this->Grid.LinearIndex(MI), value, GOBase::Values);
+    }
+    template <typename T,typename Arg,typename...Args>
+    inline void put_force(T const& value, Arg const &arg, Args const&... args) {
+        put_force_point(value,make_point(arg,args...));
+    }
+    template <typename T, typename Arg>
+    inline void put_force(T const& value, Arg const& arg) {
+        static_assert(
+            std::tuple_size<std::tuple<Arg>>::value == GOBase::Dim,
+            "numbper of args mismatches dimension");
+        auto MI = this->Grid.pos(arg);
+        VS.put_value(
+            this->Grid.LinearIndex(MI), 
+            value, GOBase::Values);
+
+    }
+
+    
     INHERIT_DESERIALIZATOR(GOBase,Histogramm)
 };
 
